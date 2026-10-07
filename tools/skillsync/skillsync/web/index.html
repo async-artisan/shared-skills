@@ -53,6 +53,7 @@
     --sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }  /* 防类样式（如 .chip 的 display）压过 hidden 属性 */
   html { height: 100%; scrollbar-color: #c6cedb transparent; }
   body {
     margin: 0;
@@ -458,6 +459,7 @@
     </div>
     <span class="spacer"></span>
     <span class="chip" id="repo"><span class="pulse"></span>加载中…</span>
+    <span class="chip" id="pretransChip" hidden></span>
     <span class="scan-time" id="lastScan"></span>
     <button id="refreshBtn">↻ 刷新对账</button>
   </div>
@@ -733,7 +735,7 @@ function render() {
       <div class="es">调整关键词或平台筛选，或 <button onclick="clearFilters()">清除筛选</button></div></div>`;
     return;
   }
-  if (tab === "pending") renderPending(pend);
+  if (tab === "pending") { renderPending(pend); pretranslateDescs(); }
   else if (tab === "problems") renderProblems(prob);
   else if (tab === "managed") renderManaged(man);
   else renderLibrary(lib);
@@ -746,6 +748,60 @@ function rowDesc(f) {
 }
 const GENERIC_PENDING_DETAIL = "平台目录中的新技能，尚未纳入共享仓";
 
+// ---- 简介批量预翻译：进入待采纳页后，后台把英文简介逐条译中 ----
+// 译文进程内即时生效；后端 /api/translate 自带磁盘缓存，重启不丢。
+const DESC_ZH = new Map();  // 英文简介 -> 中文译文
+const DOC_TR = new Map();   // 查看器自动预热：SKILL.md 原文 -> 翻译 promise
+const PRETRANS = { started: false, running: false, paused: false, done: 0, total: 0 };
+let _pretransPainted = 0;
+
+function paintPretransChip() {
+  const c = $("#pretransChip");
+  if (!c) return;
+  if (PRETRANS.running) {
+    c.hidden = false;
+    c.innerHTML = `<span class="pulse"></span>简介译中 ${PRETRANS.done}/${PRETRANS.total}`
+      + (PRETRANS.paused ? "（已暂停，详情优先）" : "");
+  } else {
+    c.hidden = true;
+  }
+}
+
+async function pretranslateDescs() {
+  if (PRETRANS.started) return;
+  PRETRANS.started = true;
+  const g = groupByStatus();
+  const pendRows = [...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])];
+  const uniq = [...new Set(pendRows.map(rowDesc).filter(Boolean))]
+    .filter(d => isMostlyEnglish(d) && !DESC_ZH.has(d));
+  if (!uniq.length) return;
+  PRETRANS.running = true; PRETRANS.done = 0; PRETRANS.total = uniq.length;
+  paintPretransChip();
+  for (const d of uniq) {
+    // 详情查看器打开时让路：离线翻译引擎单线程，交互请求优先
+    while (PRETRANS.paused) await new Promise(r => setTimeout(r, 250));
+    try {
+      const r = await api("/api/translate", { method: "POST", body: { text: d } });
+      DESC_ZH.set(d, r.translated || d);
+    } catch (e) {
+      toast("批量预翻译中止：" + e.message, "err");
+      break;
+    }
+    PRETRANS.done++;
+    paintPretransChip();
+    const now = Date.now();
+    if (curTab() === "pending" && now - _pretransPainted > 400) {
+      _pretransPainted = now;
+      render();  // 译文到一条刷一屏（节流），列表逐步变中文
+    }
+  }
+  PRETRANS.running = false;
+  paintPretransChip();
+  if (PRETRANS.done >= PRETRANS.total)
+    toast(`英文简介已批量译好（${PRETRANS.done} 条，缓存已落盘）`, "ok");
+  if (curTab() === "pending") render();
+}
+
 function renderPending(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "没有待采纳的技能", "NO PENDING SIGNALS"); return; }
   const pg = pageSlice(rows, "pending");
@@ -753,11 +809,12 @@ function renderPending(rows) {
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:230px">操作 / ACTIONS</th>
     </tr></thead><tbody>${pg.items.map(f => {
       const desc = rowDesc(f);
+      const shown = DESC_ZH.get(desc) || desc;
       const statusLine = f.detail === GENERIC_PENDING_DETAIL ? "" :
         `<div class="detail">${esc(f.detail)}</div>`;
       return `<tr>
       <td>${badge(f.platform)}</td>
-      <td><strong>${esc(f.name)}</strong>${desc ? `<div class="detail clamp2" title="${esc(desc)}">${esc(desc)}</div>` : ""}${statusLine}</td>
+      <td><strong>${esc(f.name)}</strong>${desc ? `<div class="detail clamp2" title="${esc(desc)}">${esc(shown)}</div>` : ""}${statusLine}</td>
       <td><div class="row-actions">
         <button onclick="viewSource('${f.platform}', ${jstr(f.name)})">查看</button>
         <button class="primary" onclick="openAdopt('${f.platform}', ${jstr(f.name)})">采纳…</button>
@@ -936,7 +993,7 @@ function modal(title, bodyHtml, footHtml) {
   $("#modalFoot").innerHTML = footHtml;
   $("#modalMask").classList.add("show");
 }
-function closeModal() { $("#modalMask").classList.remove("show"); }
+function closeModal() { $("#modalMask").classList.remove("show"); PRETRANS.paused = false; paintPretransChip(); }
 $("#modalMask").addEventListener("click", e => { if (e.target.id === "modalMask") closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
@@ -1142,6 +1199,19 @@ function showSkillViewer(title, meta, content) {
   paint();
   const btn = $("#translateBtn");
   if (!btn) return;
+  PRETRANS.paused = true; paintPretransChip();  // 批处理让路，详情翻译优先
+  // 自动预热：弹窗打开即在后台开译，稍后点「译为中文」通常瞬时出结果
+  let prewarmed = null;
+  if (english) {
+    prewarmed = DOC_TR.get(content) || null;
+    if (!prewarmed) {
+      prewarmed = api("/api/translate", { method: "POST", body: { text: content } })
+        .catch(e => { DOC_TR.delete(content); throw e; });
+      DOC_TR.set(content, prewarmed);
+      if (DOC_TR.size > 24) DOC_TR.delete(DOC_TR.keys().next().value);
+    }
+    prewarmed.catch(() => {});  // 预热失败静默，点按钮时再报
+  }
   btn.onclick = async () => {
     if (translated !== null) {
       showingZh = !showingZh;
@@ -1151,13 +1221,14 @@ function showSkillViewer(title, meta, content) {
     }
     btn.disabled = true; btn.textContent = "翻译中…（本地离线模型）";
     try {
-      const r = await api("/api/translate", { method: "POST", body: { text: content } });
+      const r = await (prewarmed || api("/api/translate", { method: "POST", body: { text: content } }));
       if (r.skipped) { btn.remove(); return; }
       translated = r.translated; showingZh = true;
       paint();
       btn.textContent = "查看原文"; btn.disabled = false;
       toast(`翻译引擎：${r.engine}（仅预览，不写文件）`, "ok");
     } catch (e) {
+      prewarmed = null;  // 失败后下次点击重新发起
       btn.disabled = false; btn.textContent = "译为中文";
       toast(e.message, "err");
     }
