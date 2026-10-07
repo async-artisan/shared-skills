@@ -231,6 +231,7 @@
   }
   #clearFilter { padding: 6px 12px; font-size: 12px; }
   .filter-info { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+  .hist-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 
   /* ---------- Markdown 查看器 ---------- */
   .md-body { margin-top: 10px; }
@@ -481,6 +482,7 @@
     <button data-tab="problems" title="需要处理的异常：内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异或一键修复">问题与分叉<span class="tab-n" id="cnt-problems">0</span></button>
     <button data-tab="managed" title="已通过软链下发到各平台的技能，以及被忽略、不再参与同步的技能">已纳管 / 忽略<span class="tab-n" id="cnt-managed">0</span></button>
     <button data-tab="library" title="共享仓 canonical 的技能本体（唯一事实源），可查看 SKILL.md">技能库<span class="tab-n" id="cnt-library">0</span></button>
+    <button data-tab="history" title="adopt / resolve / apply / ignore 全部操作的结构化留痕（registry/audit.logl），最新在前">操作历史<span class="tab-n" id="cnt-history">0</span></button>
   </div>
   <div class="tabs-hint" id="tabsHint"></div>
   <div class="toolbar" id="toolbar">
@@ -513,17 +515,17 @@
 <script>
 "use strict";
 const PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
-const PROBLEM_STATUSES = ["fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical"];
+const PROBLEM_STATUSES = ["fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical", "bad-frontmatter"];
 const PAGE_SIZES = [15, 30, 50];
 const STATUS_TEXT = {
   "managed-ok": "已纳管（软链）", "synced-copy": "内容一致副本", "fork": "已分叉",
   "unregistered": "未登记", "duplicate": "内容重复", "missing-target": "平台缺失",
   "managed-foreign": "仓外软链", "broken-link": "软链失效",
-  "missing-canonical": "缺 canonical", "ignored": "已忽略"
+  "missing-canonical": "缺 canonical", "bad-frontmatter": "元数据异常", "ignored": "已忽略"
 };
 let DATA = null;
 let pageSize = 15;
-const pagePos = { pending: 1, problems: 1, managed: 1, library: 1 };
+const pagePos = { pending: 1, problems: 1, managed: 1, library: 1, history: 1 };
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -552,6 +554,7 @@ async function api(path, opts = {}) {
 async function refresh() {
   const d = await api("/api/scan");
   DATA = d;
+  HISTORY = null; // 操作可能已写入新审计记录，缓存失效
   render();
   $("#lastScan").textContent = "SCAN " + new Date().toLocaleTimeString();
 }
@@ -679,6 +682,8 @@ function matchRow(f) {
 }
 
 function render() {
+  const tab = curTab();
+  if (tab === "history") { renderHistoryTab(); return; }
   const g = groupByStatus();
   renderCards();
   const pendingRows = [
@@ -697,7 +702,6 @@ function render() {
     managed: managedRows.length, library: allLib.length
   });
   // 筛选提示：页签计数保持全量，这里显示当前页签的匹配数
-  const tab = curTab();
   const totals = { pending: pendingRows.length, problems: problemRows.length,
                    managed: managedRows.length, library: allLib.length };
   const shown = { pending: pend, problems: prob, managed: man, library: lib }[tab];
@@ -765,6 +769,10 @@ function problemActions(f) {
     return `<button class="primary" onclick="applyOnly('${f.platform}', ${nm})">apply 修复</button>`;
   if (f.status === "managed-foreign")
     return `<button class="danger" onclick="applyForce('${f.platform}', ${nm})">强制换链</button>`;
+  if (f.status === "bad-frontmatter")
+    return f.platform === "-"
+      ? `<button onclick="viewSkill(${nm})">查看 SKILL.md</button>`
+      : `<button onclick="viewSource('${f.platform}', ${nm})">查看</button>`;
   return "";
 }
 
@@ -805,6 +813,76 @@ function renderLibrary(rows) {
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
     <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td>${r.plats.map(badge).join(" ")}</td>
       <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看 SKILL.md</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
+}
+
+// ---- 操作历史（registry/audit.logl 的结构化留痕，最新在前） ----
+let HISTORY = null;
+const ACTION_TEXT = { adopt: "采纳", resolve: "裁决", apply: "下发", ignore: "忽略" };
+const ACTION_CLS = { adopt: "st-unregistered", resolve: "st-synced-copy",
+                     apply: "st-managed-ok", ignore: "st-ignored" };
+
+async function ensureHistory() {
+  if (HISTORY) return HISTORY;
+  const d = await api("/api/history?limit=500");
+  HISTORY = d.entries || [];
+  return HISTORY;
+}
+
+// 历史行匹配：平台筛选按记录平台；搜索覆盖整条记录的全部字段
+function matchHistoryRow(rec) {
+  if (platformFilter !== "all" && rec.platform && rec.platform !== "*"
+      && rec.platform !== platformFilter) return false;
+  if (!query) return true;
+  const hay = JSON.stringify(rec).toLowerCase();
+  return query.split(/\s+/).every(t => hay.includes(t));
+}
+
+function historyDetail(rec) {
+  const skip = new Set(["time", "action", "slug", "platform"]);
+  return Object.entries(rec)
+    .filter(([k]) => !skip.has(k))
+    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join(" · ");
+}
+
+function renderHistoryTab() {
+  if (HISTORY) { paintHistory(HISTORY); return; }
+  $("#panel").innerHTML = emptyBlock("···", "加载操作历史…", "READING AUDIT.LOGL");
+  ensureHistory().then(() => { if (curTab() === "history") render(); })
+    .catch(e => { $("#panel").innerHTML = `<div class="warn">${esc(e.message)}</div>`; });
+}
+
+function paintHistory(all) {
+  const rows = all.filter(matchHistoryRow);
+  $("#cnt-history").textContent = String(all.length);
+  $("#filterInfo").textContent =
+    filtersActive() ? `FILTER ${rows.length} / ${all.length}` : "";
+  $("#clearFilter").style.display = filtersActive() ? "" : "none";
+  if (filtersActive() && !rows.length && all.length) {
+    $("#panel").innerHTML = `<div class="empty"><div class="glyph">⌕</div>
+      <div class="et">没有匹配的操作记录</div>
+      <div class="es">调整关键词或平台筛选，或 <button onclick="clearFilters()">清除筛选</button></div></div>`;
+    return;
+  }
+  renderHistory(rows);
+}
+
+function renderHistory(rows) {
+  if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "暂无操作记录", "AUDIT LOG EMPTY"); return; }
+  const pg = pageSlice(rows, "history");
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+    <th style="width:175px">时间 / TIME</th><th style="width:90px">动作 / ACTION</th><th>对象与详情 / TARGET & DETAIL</th>
+    </tr></thead><tbody>${pg.items.map(rec => {
+      const when = (rec.time || "").replace("T", " ");
+      const act = rec.action || "?";
+      const plat = rec.platform === "*" ? "全部平台"
+        : rec.platform && rec.platform !== "-" ? badge(rec.platform) : "";
+      return `<tr>
+        <td><span class="hist-time">${esc(when)}</span></td>
+        <td><span class="st ${ACTION_CLS[act] || ""}">${esc(ACTION_TEXT[act] || act)}</span></td>
+        <td><strong>${esc(rec.slug || "—")}</strong> ${plat}
+          <div class="detail">${esc(historyDetail(rec)) || "—"}</div></td></tr>`;
+    }).join("")}</tbody></table></div>${pagerBar("history", pg)}`;
 }
 
 // ---- 模态框 ----
@@ -1053,18 +1131,20 @@ $("#applyWriteLink").onclick = () => runApply(true, true, false);
 $("#refreshBtn").onclick = refresh;
 const TAB_HINTS = {
   pending: "待采纳：平台目录里的新技能或重复副本，尚未纳入共享仓。可先「查看」了解用途（英文可译为中文），再决定采纳进 canonical 或忽略。",
-  problems: "问题与分叉：需要处理的异常——平台副本与共享仓内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异后裁决或一键修复。",
+  problems: "问题与分叉：需要处理的异常——平台副本与共享仓内容分叉、软链损坏、平台缺目标、外来软链、SKILL.md 元数据异常等，可查看差异或详情后裁决修复。",
   managed: "已纳管 / 忽略：已通过软链下发到各平台的技能（改动会同步两端），以及被忽略、不再参与同步的技能。",
-  library: "技能库：共享仓 canonical 中的技能本体，是唯一事实源；各平台目录里都只是它的软链或副本。"
+  library: "技能库：共享仓 canonical 中的技能本体，是唯一事实源；各平台目录里都只是它的软链或副本。",
+  history: "操作历史：adopt（采纳）/ resolve（裁决）/ apply（下发）/ ignore（忽略）的结构化留痕，来自 registry/audit.logl，最新在前；支持搜索与平台筛选。"
 };
 function updateTabsHint() {
   const active = document.querySelector("#tabs button.active");
   $("#tabsHint").textContent = TAB_HINTS[active?.dataset.tab] || "";
 }
 $("#tabs").addEventListener("click", e => {
-  if (e.target.dataset.tab) {
+  const btn = e.target.closest("button[data-tab]");
+  if (btn) {
     document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
-    e.target.classList.add("active");
+    btn.classList.add("active");
     updateTabsHint();
     render();
   }

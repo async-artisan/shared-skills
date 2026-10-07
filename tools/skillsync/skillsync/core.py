@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,77 @@ AUDIT_PATH = REGISTRY_DIR / "audit.logl"
 SKILL_MD = "SKILL.md"
 IGNORE_FILES = {".DS_Store"}
 IGNORE_DIRS = {"__pycache__", ".git"}
+
+_DESC_KEY_RE = re.compile(r"^(description):\s*(.*)$")
+
+
+def extract_description(md_text: str) -> str:
+    """从 SKILL.md frontmatter 提取 description。
+
+    自行扫描而非 yamllite：后者不支持 >、>- 等块标量，而技能文档
+    的多行简介普遍使用该写法。支持折叠标量（拼成单行）、字面标量
+    （保留换行）与单双引号行内标量。
+    """
+    lines = md_text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    end = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end = i
+            break
+    if end is None:
+        return ""
+    block = lines[1:end]
+    for idx, line in enumerate(block):
+        m = _DESC_KEY_RE.match(line)
+        if not m:
+            continue
+        rest = m.group(2).strip()
+        if rest.startswith((">", "|")):
+            chunk: list[str] = []
+            for l2 in block[idx + 1:]:
+                if not l2.strip() or l2[:1] in (" ", "\t"):
+                    chunk.append(l2.strip())
+                else:
+                    break
+            return " ".join(chunk) if rest.startswith(">") else "\n".join(chunk)
+        if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in "\"'":
+            rest = rest[1:-1]
+        return " ".join(rest.split())
+    return ""
+
+
+def frontmatter_issue(skill_dir: Path) -> str:
+    """SKILL.md 元数据体检：返回问题描述，健康返回空串。
+
+    宽松校验（不做完整 YAML 解析）：能容忍 yamllite 不支持的块标量，
+    只盯真正影响展示与检索的三个点——结构缺失、description 空、
+    name 与目录名不一致。
+    """
+    md = skill_dir / SKILL_MD
+    try:
+        text = md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "SKILL.md 无法读取"
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return "SKILL.md 缺少 frontmatter"
+    end = -1
+    for k in range(1, len(lines)):
+        if lines[k].strip() == "---":
+            end = k
+            break
+    if end < 0:
+        return "frontmatter 未闭合（缺少结束 ---）"
+    if not extract_description(text):
+        return "description 缺失或为空"
+    m = re.search(r"^name:\s*(.+)$", "\n".join(lines[1:end]), re.M)
+    if m:
+        nm = m.group(1).strip().strip("\"'")
+        if nm and nm != skill_dir.name:
+            return f"name 字段（{nm}）与目录名（{skill_dir.name}）不一致"
+    return ""
 
 
 @dataclass(frozen=True)

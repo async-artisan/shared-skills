@@ -25,7 +25,15 @@ from urllib.parse import parse_qs, urlparse
 from . import adopt as adopt_mod
 from . import apply as apply_mod
 from . import resolve as resolve_mod
-from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, scan_platform
+from .core import (
+    AUDIT_PATH,
+    PLATFORMS,
+    SKILL_MD,
+    SKILLS_DIR,
+    extract_description,
+    hash_skill,
+    scan_platform,
+)
 from .doctor import PROBLEM_STATUSES, scan_all
 from .store import load_state, save_state, audit
 from .adopt import AdoptError
@@ -287,46 +295,6 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "ignored": sorted(ignored)}
 
 
-_DESC_KEY_RE = re.compile(r"^(description):\s*(.*)$")
-
-
-def _extract_description(md_text: str) -> str:
-    """从 SKILL.md frontmatter 提取 description。
-
-    自行扫描而非 yamllite：后者不支持 >、>- 等块标量，而技能文档
-    的多行简介普遍使用该写法。支持折叠标量（拼成单行）、字面标量
-    （保留换行）与单双引号行内标量。
-    """
-    lines = md_text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return ""
-    end = None
-    for i in range(1, len(lines)):
-        if lines[i].strip() == "---":
-            end = i
-            break
-    if end is None:
-        return ""
-    block = lines[1:end]
-    for idx, line in enumerate(block):
-        m = _DESC_KEY_RE.match(line)
-        if not m:
-            continue
-        rest = m.group(2).strip()
-        if rest.startswith((">", "|")):
-            chunk: list[str] = []
-            for l2 in block[idx + 1:]:
-                if not l2.strip() or l2[:1] in (" ", "\t"):
-                    chunk.append(l2.strip())
-                else:
-                    break
-            return " ".join(chunk) if rest.startswith(">") else "\n".join(chunk)
-        if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in "\"'":
-            rest = rest[1:-1]
-        return " ".join(rest.split())
-    return ""
-
-
 def _canonical_descriptions() -> dict[str, str]:
     """提取 canonical 各技能 frontmatter 的 description，作为列表简介。"""
     out: dict[str, str] = {}
@@ -339,7 +307,7 @@ def _canonical_descriptions() -> dict[str, str]:
         if not md.is_file():
             continue
         try:
-            out[child.name] = _extract_description(
+            out[child.name] = extract_description(
                 md.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             out[child.name] = ""
@@ -356,13 +324,40 @@ def _platform_descriptions() -> dict[str, str]:
             if not md.is_file():
                 continue
             try:
-                desc = _extract_description(
+                desc = extract_description(
                     md.read_text(encoding="utf-8", errors="replace"))
             except OSError:
                 continue
             if desc:
                 out[f"{key}/{entry.name}"] = desc
     return out
+
+
+def _read_audit(limit: int = 300) -> list[dict[str, Any]]:
+    """读取 audit.logl（JSONL），最新在前；坏行跳过。"""
+    if not AUDIT_PATH.is_file():
+        return []
+    try:
+        lines = AUDIT_PATH.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    out: list[dict[str, Any]] = []
+    for ln in lines:
+        ln = ln.strip()
+        if not ln:
+            continue
+        try:
+            rec = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            rec.setdefault("time", "")
+            rec.setdefault("action", "")
+            rec.setdefault("slug", "")
+            rec.setdefault("platform", "")
+            out.append(rec)
+    out.reverse()
+    return out[: max(1, limit)]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -420,6 +415,14 @@ class Handler(BaseHTTPRequestHandler):
                 q = parse_qs(parsed.query)
                 self._send_json(_source_skill(q.get("platform", [""])[0],
                                               q.get("name", [""])[0]))
+                return
+            if parsed.path == "/api/history":
+                q = parse_qs(parsed.query)
+                try:
+                    limit = min(2000, max(1, int(q.get("limit", ["300"])[0])))
+                except ValueError:
+                    limit = 300
+                self._send_json({"ok": True, "entries": _read_audit(limit)})
                 return
             self._send_json({"ok": False, "error": "not found"}, 404)
         except ApiError as exc:

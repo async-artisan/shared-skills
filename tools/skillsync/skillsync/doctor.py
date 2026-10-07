@@ -5,7 +5,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, SkillEntry, hash_skill, scan_platform
+from .core import (
+    PLATFORMS,
+    SKILL_MD,
+    SKILLS_DIR,
+    SkillEntry,
+    frontmatter_issue,
+    hash_skill,
+    scan_platform,
+)
 from .store import load_catalog, load_state
 
 STATUS_LABELS = {
@@ -18,10 +26,12 @@ STATUS_LABELS = {
     "managed-foreign": "软链指向共享仓之外",
     "broken-link": "软链已失效",
     "missing-canonical": "catalog 有条目但 skills/ 缺目录",
+    "bad-frontmatter": "SKILL.md 元数据异常",
     "ignored": "已忽略",
 }
 
-PROBLEM_STATUSES = {"fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical"}
+PROBLEM_STATUSES = {"fork", "broken-link", "missing-target", "managed-foreign",
+                    "missing-canonical", "bad-frontmatter"}
 ADOPTABLE_STATUSES = {"unregistered", "duplicate", "synced-copy"}
 
 
@@ -78,6 +88,10 @@ def scan_all() -> dict[str, Any]:
         for e in entries:
             seen_names.add(e.name)
             findings.append(_classify(e, catalog_skills, canonical_by_name, canonical_by_hash, ignored))
+            # 元数据体检：坏 frontmatter 影响简介展示与检索，作为独立问题上报
+            issue = frontmatter_issue(e.path)
+            if issue:
+                findings.append(Finding(e.platform, e.name, "bad-frontmatter", issue, str(e.path)))
 
         # catalog 声明分发到该平台、但目录里完全没有
         for slug, meta in catalog_skills.items():
@@ -97,6 +111,14 @@ def scan_all() -> dict[str, Any]:
             findings.append(
                 Finding(platform="-", name=slug, status="missing-canonical",
                          detail="catalog.yaml 有条目，但 skills/ 下找不到对应目录")
+            )
+
+    # canonical 自身元数据体检
+    for slug in canonical_by_name:
+        issue = frontmatter_issue(SKILLS_DIR / slug)
+        if issue:
+            findings.append(
+                Finding(platform="-", name=slug, status="bad-frontmatter", detail=issue)
             )
 
     summary = _summarize(findings, len(canonical_by_name), builtin_counts)
@@ -184,7 +206,7 @@ def format_text(result: dict[str, Any]) -> str:  # noqa: C901 - 报告排版
 
     order = [
         "fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical",
-        "unregistered", "duplicate", "synced-copy", "managed-ok", "ignored",
+        "bad-frontmatter", "unregistered", "duplicate", "synced-copy", "managed-ok", "ignored",
     ]
     findings = [Finding(**f) for f in result["findings"]]
     for status in order:
