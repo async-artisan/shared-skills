@@ -1,0 +1,25 @@
+{
+  "_comment": "WorkBuddy directory 市场模板。格式取自本机 oil-local 真实市场：市场根放 .codebuddy-plugin/marketplace.json，插件放 plugins/<name>/，skills 数组逐个列出技能目录。正式启用时由 skillsync 生成到仓库根（届时条目指向 skills/<slug>），再在 WorkBuddy 添加该目录为本地市场。当前 WorkBuddy 的主要纳管通道是 ~/.workbuddy/skills 下的软链。",
+  "name": "shared-skills-local",
+  "description": "本机跨平台共享技能仓（WorkBuddy directory 市场模板）",
+  "owner": {
+    "name": "qiujianjun"
+  },
+  "metadata": {
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "shared-skills",
+      "description": "本机跨平台共享 Agent 技能集合",
+      "source": "./plugins/shared-skills",
+      "version": "0.1.0",
+      "category": "productivity",
+      "author": {
+        "name": "qiujianjun"
+      },
+      "license": "UNLICENSED",
+      "skills": []
+    }
+  ]
+}

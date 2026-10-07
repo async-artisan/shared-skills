@@ -1,0 +1,5 @@
+#!/bin/sh
+# skillsync 启动包装：自动定位仓库内的 Python 包，无需安装。
+REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+export PYTHONPATH="$REPO_ROOT/tools/skillsync${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m skillsync "$@"

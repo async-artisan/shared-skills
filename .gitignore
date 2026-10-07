@@ -1,0 +1,17 @@
+# 系统与编辑器
+.DS_Store
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 本地备份（apply/adopt 产生的回滚副本，不入库）
+*.bak-*
+
+# 本机状态（忽略名单、最近 apply；机器相关，不跨机器同步）
+registry/state.yaml
+
+# 运行态临时输出
+.claude-plugin-local/

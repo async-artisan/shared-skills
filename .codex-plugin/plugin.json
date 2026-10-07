@@ -1,0 +1,15 @@
+{
+  "name": "shared-skills",
+  "version": "0.1.0",
+  "description": "本机跨平台共享 Agent 技能集合（skills/ 为唯一事实源，由 skillsync 维护）",
+  "author": {
+    "name": "qiujianjun"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "shared",
+    "local",
+    "skillsync"
+  ],
+  "skills": "./skills/"
+}

@@ -1,0 +1,13 @@
+{"time": "2026-10-07T09:03:33+08:00", "action": "adopt", "slug": "commit-cn", "platform": "codex", "targets": ["claude", "codex", "workbuddy", "trae"], "security_warnings": 0, "source": "/Users/qiujianjun/.Trash/ai-skills-hub/skills/shared/commit-cn"}
+{"time": "2026-10-07T09:03:33+08:00", "action": "apply", "slug": "", "platform": "*", "executed": 4, "refused": 0}
+{"time": "2026-10-07T09:03:57+08:00", "action": "adopt", "slug": "brainstorming", "platform": "codex", "targets": ["codex", "trae"], "security_warnings": 0, "source": "/Users/qiujianjun/.codex/skills/brainstorming"}
+{"time": "2026-10-07T09:03:57+08:00", "action": "apply", "slug": "", "platform": "*", "executed": 1, "refused": 1}
+{"time": "2026-10-07T09:03:57+08:00", "action": "resolve", "slug": "brainstorming", "platform": "trae", "winner": "canonical", "detail": "平台目录已备份为 brainstorming.bak-20261007090357，原位换成软链（canonical 胜出）"}
+{"time": "2026-10-07T09:03:58+08:00", "action": "adopt", "slug": "frontend-skill", "platform": "codex", "targets": ["codex", "trae"], "security_warnings": 0, "source": "/Users/qiujianjun/.codex/skills/frontend-skill"}
+{"time": "2026-10-07T09:03:58+08:00", "action": "apply", "slug": "", "platform": "*", "executed": 1, "refused": 1}
+{"time": "2026-10-07T09:03:58+08:00", "action": "resolve", "slug": "frontend-skill", "platform": "trae", "winner": "canonical", "detail": "平台目录已备份为 frontend-skill.bak-20261007090358，原位换成软链（canonical 胜出）"}
+{"time": "2026-10-07T09:03:58+08:00", "action": "adopt", "slug": "test-driven-development", "platform": "codex", "targets": ["codex", "trae"], "security_warnings": 0, "source": "/Users/qiujianjun/.codex/skills/test-driven-development"}
+{"time": "2026-10-07T09:03:58+08:00", "action": "apply", "slug": "", "platform": "*", "executed": 1, "refused": 1}
+{"time": "2026-10-07T09:03:58+08:00", "action": "resolve", "slug": "test-driven-development", "platform": "trae", "winner": "canonical", "detail": "平台目录已备份为 test-driven-development.bak-20261007090358，原位换成软链（canonical 胜出）"}
+{"time": "2026-10-07T09:04:15+08:00", "action": "adopt", "slug": "aihot", "platform": "workbuddy", "targets": ["workbuddy"], "security_warnings": 0, "source": "/Users/qiujianjun/.workbuddy/skills/AI HOT"}
+{"time": "2026-10-07T09:04:15+08:00", "action": "apply", "slug": "", "platform": "*", "executed": 1, "refused": 0}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "shared-skills-local",
+  "description": "本机跨平台共享技能仓（单仓事实源；skills/ 由 skillsync 维护）",
+  "owner": {
+    "name": "qiujianjun"
+  },
+  "plugins": [
+    {
+      "name": "shared-skills",
+      "description": "本机跨平台共享 Agent 技能集合",
+      "source": ".",
+      "category": "productivity"
+    }
+  ]
+}
