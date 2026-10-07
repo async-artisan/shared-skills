@@ -18,12 +18,13 @@ import threading
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from . import adopt as adopt_mod
 from . import apply as apply_mod
+from . import remote as remote_mod
 from . import resolve as resolve_mod
 from .core import (
     AUDIT_PATH,
@@ -361,6 +362,51 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "ignored": sorted(ignored)}
 
 
+_IMPORT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+
+
+def _do_import_preview(body: dict[str, Any]) -> dict[str, Any]:
+    """远程 URL → 技能预览（含文件内容，但不落盘）。"""
+    url = str(body.get("url") or "").strip()
+    if not url:
+        raise ApiError("url 必填")
+    try:
+        preview = remote_mod.fetch(url)
+    except remote_mod.RemoteError as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "preview": {k: v for k, v in preview.items() if k != "blobs"}}
+
+
+def _do_import_confirm(body: dict[str, Any]) -> dict[str, Any]:
+    """确认导入：同一 URL 重新抓取（保证最新），校验名称后写入 canonical。"""
+    url = str(body.get("url") or "").strip()
+    name = str(body.get("name") or "").strip()
+    if not url:
+        raise ApiError("url 必填")
+    if not _IMPORT_NAME_RE.match(name):
+        raise ApiError("导入名称需为小写字母/数字/连字符（≤64 位，字母开头）")
+    try:
+        preview = remote_mod.fetch(url)
+    except remote_mod.RemoteError as exc:
+        raise ApiError(str(exc))
+    dest = SKILLS_DIR / name
+    if dest.exists():
+        raise ApiError(f"skills/{name} 已存在，请改用其他名称")
+    written = 0
+    for rel, data in preview["blobs"].items():
+        parts = PurePosixPath(rel).parts
+        if not parts or any(p in ("", ".", "..") for p in parts) or PurePosixPath(rel).is_absolute():
+            raise ApiError(f"远端返回非法路径：{rel}")
+        target = dest / Path(*parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        written += 1
+    audit("import", slug=name, platform="canonical",
+          source=preview["source"], files=written, via="web")
+    return {"ok": True, "name": name, "files": written,
+            "description": preview["description"]}
+
+
 def _canonical_descriptions() -> dict[str, str]:
     """提取 canonical 各技能 frontmatter 的 description，作为列表简介。"""
     out: dict[str, str] = {}
@@ -511,6 +557,8 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/apply": _do_apply,
                 "/api/ignore": _do_ignore,
                 "/api/translate": _do_translate,
+                "/api/import": _do_import_preview,
+                "/api/import/confirm": _do_import_confirm,
             }
             handler = routes.get(parsed.path)
             if handler is None:

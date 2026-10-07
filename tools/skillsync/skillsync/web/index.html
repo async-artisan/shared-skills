@@ -230,6 +230,7 @@
     background: var(--panel-2); color: var(--ink);
   }
   #clearFilter { padding: 6px 12px; font-size: 12px; }
+  #importBtn { padding: 6px 14px; font-size: 12px; }
   .filter-info { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
   .hist-time { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
 
@@ -497,6 +498,7 @@
       <option value="trae">trae</option>
     </select>
     <button id="clearFilter" onclick="clearFilters()" style="display:none">清除筛选</button>
+    <button id="importBtn" onclick="openImport()" title="从 github.com / skills.sh 导入技能到 canonical（先预览后落盘）">导入</button>
     <span class="filter-info" id="filterInfo"></span>
   </div>
   <div class="panel" id="panel"></div>
@@ -912,6 +914,57 @@ function modal(title, bodyHtml, footHtml) {
 function closeModal() { $("#modalMask").classList.remove("show"); }
 $("#modalMask").addEventListener("click", e => { if (e.target.id === "modalMask") closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+
+// ---- 远程导入：github.com / skills.sh → 预览 → canonical ----
+window.openImport = function () {
+  modal("从远程导入技能", `
+    <div class="meta-line">支持 github.com 仓库 / tree / blob 链接与 skills.sh 页面；先解析预览，确认后才写入技能库</div>
+    <input type="text" id="importUrl" placeholder="https://github.com/owner/repo/tree/main/skills/demo"
+           style="width:100%;margin-top:8px" autocomplete="off">
+    <div id="importPrev" style="margin-top:10px"></div>`,
+    `<button onclick="closeModal()">取消</button>
+     <button class="primary" id="importParseBtn">解析预览</button>
+     <button class="primary" id="importConfirmBtn" style="display:none" onclick="importConfirmGo()">确认导入</button>`);
+  setTimeout(() => $("#importUrl").focus(), 60);
+  $("#importParseBtn").onclick = importParse;
+};
+
+async function importParse() {
+  const url = $("#importUrl").value.trim();
+  if (!url) { toast("请先输入 URL", "err"); return; }
+  const prev = $("#importPrev");
+  prev.innerHTML = '<div class="meta-line">抓取中…（最多 20 秒）</div>';
+  $("#importConfirmBtn").style.display = "none";
+  try {
+    const r = await api("/api/import", { method: "POST", body: { url } });
+    const p = r.preview;
+    const files = p.files.map(f =>
+      `<li>${esc(f.path)} <span class="muted">(${(f.size / 1024).toFixed(1)} KB)</span></li>`).join("");
+    prev.innerHTML = `
+      <div class="meta-line">SOURCE ${esc(p.source)}</div>
+      <div class="detail">${esc(p.description || "（远端未提供简介）")}</div>
+      <div style="margin:8px 0 6px">导入名称：
+        <input type="text" id="importName" value="${esc(p.name || "")}" style="width:55%" autocomplete="off">
+        <span class="muted">${p.files.length} 个文件 · ${(p.total_bytes / 1024).toFixed(1)} KB</span></div>
+      <ul style="margin:0 0 0 18px;font-size:12px;line-height:1.7">${files}</ul>`;
+    $("#importConfirmBtn").style.display = "";
+  } catch (e) {
+    prev.innerHTML = `<div class="warn">${esc(e.message)}</div>`;
+  }
+}
+
+window.importConfirmGo = async function () {
+  const name = ($("#importName")?.value || "").trim();
+  const btn = $("#importConfirmBtn");
+  btn.disabled = true;
+  try {
+    const r = await api("/api/import/confirm", { method: "POST",
+      body: { url: $("#importUrl").value.trim(), name } });
+    closeModal();
+    toast(`已导入 ${r.name}（${r.files} 个文件），可在技能库页签查看并下发`, "ok");
+    await refresh();
+  } catch (e) { toast(e.message, "err"); btn.disabled = false; }
+};
 
 window.openAdopt = function (platform, name) {
   const checks = PLATFORMS.map(p =>
