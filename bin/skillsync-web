@@ -1,0 +1,76 @@
+#!/bin/sh
+# skillsync Web 控制台启停脚本
+#
+# 用法：
+#   bin/skillsync-web          启动（若已在运行则自动重启旧实例）
+#   bin/skillsync-web start    同上
+#   bin/skillsync-web stop     停止
+#   bin/skillsync-web restart  重启
+#   bin/skillsync-web status   查看运行状态
+#
+# 端口默认 48920，可用环境变量覆盖：SKILLSYNC_WEB_PORT=5000 bin/skillsync-web
+# 启动后自动打开浏览器；日志在 /tmp/skillsync-web.log
+
+PORT="${SKILLSYNC_WEB_PORT:-48920}"
+REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+LOG_FILE="/tmp/skillsync-web.log"
+PID_FILE="/tmp/skillsync-web-${PORT}.pid"
+URL="http://127.0.0.1:${PORT}/"
+
+is_running() {
+  lsof -ti tcp:"$PORT" >/dev/null 2>&1
+}
+
+stop_instance() {
+  if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+    kill "$(cat "$PID_FILE")" 2>/dev/null
+  fi
+  # 兜底：清理占用端口的残留进程
+  lsof -ti tcp:"$PORT" 2>/dev/null | xargs kill 2>/dev/null
+  rm -f "$PID_FILE"
+}
+
+case "$1" in
+  stop)
+    if is_running; then
+      stop_instance
+      sleep 1
+      echo "已停止（端口 ${PORT}）"
+    else
+      echo "未在运行（端口 ${PORT}）"
+    fi
+    ;;
+  status)
+    if is_running; then
+      echo "运行中: ${URL}"
+    else
+      echo "未运行"
+    fi
+    ;;
+  restart)
+    "$0" stop
+    exec "$0" start
+    ;;
+  start|"")
+    if is_running; then
+      echo "端口 ${PORT} 已有实例，先重启…"
+      stop_instance
+      sleep 1
+    fi
+    nohup "$REPO_ROOT/bin/skillsync" serve --port "$PORT" >>"$LOG_FILE" 2>&1 &
+    echo $! >"$PID_FILE"
+    sleep 1.5
+    if is_running; then
+      echo "skillsync 控制台已启动: ${URL}"
+      echo "PID $(cat "$PID_FILE") · 日志 ${LOG_FILE}"
+    else
+      echo "启动失败，最近日志："
+      tail -5 "$LOG_FILE"
+      exit 1
+    fi
+    ;;
+  *)
+    echo "用法: $0 [start|stop|restart|status]"
+    exit 2
+    ;;
+esac
