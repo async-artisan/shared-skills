@@ -33,8 +33,10 @@ from .core import (
     PLATFORMS,
     SKILL_MD,
     SKILLS_DIR,
+    _file_digest,
     extract_description,
     hash_skill,
+    iter_skill_files,
     read_text_cached,
     scan_platform,
 )
@@ -92,6 +94,66 @@ def _diff_skill(platform_key: str, name: str) -> dict[str, Any]:
         "canonical_skill_md": "\n".join(canon_lines),
         "platform_skill_md": "\n".join(plat_lines),
     }
+
+
+def _compare_skill(platform_key: str, name: str) -> dict[str, Any]:
+    """分叉对比：逐文件比对 canonical 与平台实体目录（拉取更新决策视图）。"""
+    platform = PLATFORMS.get(platform_key)
+    if platform is None:
+        raise ApiError(f"未知平台：{platform_key}")
+    entries, _ = scan_platform(platform)
+    entry = next((item for item in entries if item.name == name), None)
+    if entry is None:
+        raise ApiError(f"平台目录中找不到：{name}", 404)
+    if entry.is_symlink:
+        raise ApiError("平台侧是软链，与共享仓同源，不存在可拉取的更新")
+    canonical = SKILLS_DIR / name
+    if not (canonical / SKILL_MD).is_file():
+        raise ApiError("canonical 缺少该技能目录，属「采纳」场景而非分叉")
+
+    def side_map(root: Path) -> dict[str, dict[str, Any]]:
+        out: dict[str, dict[str, Any]] = {}
+        for f in iter_skill_files(root):
+            rel = f.relative_to(root).as_posix()
+            st = f.stat()
+            out[rel] = {"size": st.st_size, "mtime": int(st.st_mtime),
+                        "digest": _file_digest(f.resolve())}
+        return out
+
+    repo_side = side_map(canonical)      # 共享仓侧
+    plat_side = side_map(entry.path)     # 平台侧
+    files: list[dict[str, Any]] = []
+    counts = {"added": 0, "removed": 0, "changed": 0, "same": 0}
+    for rel in sorted(set(repo_side) | set(plat_side)):
+        if rel in repo_side and rel in plat_side:
+            status = "same" if repo_side[rel]["digest"] == plat_side[rel]["digest"] else "changed"
+        elif rel in plat_side:
+            status = "added"
+        else:
+            status = "removed"
+        counts[status] += 1
+        files.append({
+            "rel": rel, "status": status,
+            "size_a": repo_side.get(rel, {}).get("size"),
+            "mtime_a": repo_side.get(rel, {}).get("mtime"),
+            "size_b": plat_side.get(rel, {}).get("size"),
+            "mtime_b": plat_side.get(rel, {}).get("mtime"),
+        })
+    identical = counts == {"added": 0, "removed": 0, "changed": 0, "same": len(files)}
+    diff = None
+    if not identical and (canonical / SKILL_MD).is_file() and (entry.path / SKILL_MD).is_file():
+        canon_lines = (canonical / SKILL_MD).read_text(
+            encoding="utf-8", errors="replace").splitlines()
+        plat_lines = (entry.path / SKILL_MD).read_text(
+            encoding="utf-8", errors="replace").splitlines()
+        diff = "\n".join(difflib.unified_diff(
+            canon_lines, plat_lines,
+            fromfile=f"canonical/{name}/SKILL.md",
+            tofile=f"{platform_key}/{name}/SKILL.md",
+            lineterm="", n=3,
+        )) or "（SKILL.md 无文本差异；改动在附属文件）"
+    return {"name": name, "platform": platform_key, "files": files,
+            "counts": counts, "identical": identical, "diff": diff}
 
 
 def _skill_file(slug: str) -> dict[str, str]:
@@ -540,6 +602,11 @@ class Handler(BaseHTTPRequestHandler):
                 q = parse_qs(parsed.query)
                 self._send_json(_diff_skill(q.get("platform", [""])[0],
                                             q.get("name", [""])[0]))
+                return
+            if parsed.path == "/api/compare":
+                q = parse_qs(parsed.query)
+                self._send_json(_compare_skill(q.get("platform", [""])[0],
+                                               q.get("name", [""])[0]))
                 return
             if parsed.path == "/api/skill":
                 q = parse_qs(parsed.query)

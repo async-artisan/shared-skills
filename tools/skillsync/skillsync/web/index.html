@@ -376,6 +376,18 @@
   .diff-del { background: rgba(255,95,86,.13); color: #ffa39d; display: block; margin: 0 -14px; padding: 0 14px; }
   .diff-hunk { color: #7db4ff; display: block; }
 
+  /* 分叉对比视图（拉取更新决策） */
+  .cmp-tbl { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .cmp-tbl th { position: static; }
+  .cmp-tbl td { padding: 6px 12px; font-family: var(--mono); font-size: 11px; }
+  .cmp-added { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
+  .cmp-removed { color: var(--red); background: var(--red-soft); border-color: var(--red-line); }
+  .cmp-changed { color: var(--blue); background: var(--blue-soft); border-color: var(--blue-line); }
+  .cmp-same { color: var(--faint); }
+  .cmp-diff { margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .cmp-diff summary { cursor: pointer; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; }
+  .cmp-diff[open] summary { margin-bottom: 4px; }
+
   /* ---------- 模态框 ---------- */
   .modal-mask {
     position: fixed; inset: 0; background: rgba(24,32,48,.34); backdrop-filter: blur(3px);
@@ -837,9 +849,8 @@ function renderProblems(rows) {
 function problemActions(f) {
   const nm = jstr(f.name);
   if (f.status === "fork")
-    return `<button onclick="openDiff('${f.platform}', ${nm})">查看差异</button>
-      <button onclick="resolveOne('${f.platform}', ${nm}, 'canonical')">以仓为准</button>
-      <button class="danger" onclick="resolveOne('${f.platform}', ${nm}, 'platform')">以平台为准</button>`;
+    return `<button class="primary" onclick="openCompare('${f.platform}', ${nm})">对比 · 拉取更新</button>
+      <button onclick="resolveOne('${f.platform}', ${nm}, 'canonical')">以仓为准</button>`;
   if (f.status === "broken-link" || f.status === "missing-target")
     return `<button class="primary" onclick="applyOnly('${f.platform}', ${nm})">apply 修复</button>`;
   if (f.status === "managed-foreign")
@@ -1074,14 +1085,28 @@ window.openAdopt = function (platform, name) {
   };
 };
 
-window.openDiff = async function (platform, name) {
-  modal(`${name} · canonical vs ${platform}`, `<div class="meta-line">加载中…</div>`,
+window.openCompare = async function (platform, name) {
+  modal(`${name} · 共享仓 vs ${platform}`, `<div class="meta-line">加载中…</div>`,
     `<button onclick="closeModal()">关闭</button>
-     <button onclick="resolveOne('${platform}', ${jstr(name)}, 'canonical')">以仓为准（换软链）</button>
-     <button class="danger" onclick="resolveOne('${platform}', ${jstr(name)}, 'platform')">以平台为准</button>`);
+     <button onclick="resolveOne('${platform}', ${jstr(name)}, 'canonical')">以仓为准</button>
+     <button class="primary" onclick="resolveOne('${platform}', ${jstr(name)}, 'platform')">拉取更新（平台 → 共享仓）</button>`);
   try {
-    const d = await api(`/api/diff?platform=${platform}&name=${encodeURIComponent(name)}`);
-    const colored = d.diff.split("\n").map(l => {
+    const d = await api(`/api/compare?platform=${platform}&name=${encodeURIComponent(name)}`);
+    if (d.identical) {
+      $("#modalBody").innerHTML =
+        `<div class="meta-line">两侧内容完全一致，无需拉取。可在预演确认后用 apply --link 把平台副本转为软链。</div>`;
+      return;
+    }
+    const stTxt = { added: "平台新增", removed: "仓独有", changed: "内容不同", same: "一致" };
+    const fmt = t => t ? new Date(t * 1000).toLocaleString("zh-CN", { hour12: false }) : "—";
+    const kb = s => s == null ? "—" : (s / 1024).toFixed(1) + " KB";
+    const rows = d.files.map(f => `<tr>
+      <td><span class="st cmp-${f.status}">${stTxt[f.status]}</span></td>
+      <td>${esc(f.rel)}</td>
+      <td>${f.status === "added" ? "—" : `${kb(f.size_b)} · ${fmt(f.mtime_b)}`}</td>
+      <td>${f.status === "removed" ? "—" : `${kb(f.size_a)} · ${fmt(f.mtime_a)}`}</td>
+    </tr>`).join("");
+    const colored = (d.diff || "").split("\n").map(l => {
       let cls = "";
       if (l.startsWith("+") && !l.startsWith("+++")) cls = "diff-add";
       else if (l.startsWith("-") && !l.startsWith("---")) cls = "diff-del";
@@ -1089,8 +1114,11 @@ window.openDiff = async function (platform, name) {
       return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
     }).join("\n");
     $("#modalBody").innerHTML =
-      `<div class="meta-line">绿＝canonical 独有 / 红＝${platform} 独有 · 两侧文件均已备份，裁决不会丢内容</div>
-       <pre class="out">${colored || "（无文本差异）"}</pre>`;
+      `<div class="meta-line">可拉入共享仓：${d.counts.added} 新增 + ${d.counts.changed} 修改；共享仓独有 ${d.counts.removed} 个文件（拉取时旧内容整体备份，可撤销）</div>
+       <div class="tbl-wrap cmp-tbl"><table><thead><tr>
+         <th style="width:90px">状态</th><th>文件</th><th>平台侧</th><th>共享仓侧</th>
+       </tr></thead><tbody>${rows}</tbody></table></div>
+       <details class="cmp-diff" open><summary>SKILL.md 文本差异</summary><pre class="out">${colored || "（无）"}</pre></details>`;
   } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 };
 
