@@ -589,19 +589,30 @@ function render() {
   else renderLibrary(libraryNames);
 }
 
+// 行简介：优先平台侧 description（未采纳技能），其次 canonical 的
+function rowDesc(f) {
+  return (DATA.platform_descriptions || {})[f.platform + "/" + f.name]
+      || (DATA.descriptions || {})[f.name] || "";
+}
+const GENERIC_PENDING_DETAIL = "平台目录中的新技能，尚未纳入共享仓";
+
 function renderPending(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "没有待采纳的技能", "NO PENDING SIGNALS"); return; }
   const pg = pageSlice(rows, "pending");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:230px">操作 / ACTIONS</th>
-    </tr></thead><tbody>${pg.items.map(f => `<tr>
+    </tr></thead><tbody>${pg.items.map(f => {
+      const desc = rowDesc(f);
+      const statusLine = f.detail === GENERIC_PENDING_DETAIL ? "" :
+        `<div class="detail">${esc(f.detail)}</div>`;
+      return `<tr>
       <td>${badge(f.platform)}</td>
-      <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
+      <td><strong>${esc(f.name)}</strong>${desc ? `<div class="detail clamp2" title="${esc(desc)}">${esc(desc)}</div>` : ""}${statusLine}</td>
       <td><div class="row-actions">
         <button onclick="viewSource('${f.platform}', ${jstr(f.name)})">查看</button>
         <button class="primary" onclick="openAdopt('${f.platform}', ${jstr(f.name)})">采纳…</button>
         <button onclick="ignoreOne('${f.platform}', ${jstr(f.name)})">忽略</button>
-      </div></td></tr>`).join("")}</tbody></table></div>${pagerBar("pending", pg)}`;
+      </div></td></tr>`;}).join("")}</tbody></table></div>${pagerBar("pending", pg)}`;
 }
 
 function renderProblems(rows) {
@@ -640,6 +651,7 @@ function renderManaged(rows) {
       <div class="row-actions" style="margin-top:5px"><button onclick="unignoreOne('${f.platform}', ${jstr(f.name)})">取消忽略</button></div></td>
       <td></td></tr>` : `<tr>
       <td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>
+      ${(() => { const d = rowDesc(f); return d ? `<div class="detail clamp2" title="${esc(d)}">${esc(d)}</div>` : ""; })()}
       <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody></table></div>${pagerBar("managed", pg)}`;
 }
 

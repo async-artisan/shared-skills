@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from . import adopt as adopt_mod
 from . import apply as apply_mod
 from . import resolve as resolve_mod
-from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, parse_frontmatter, scan_platform
+from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, scan_platform
 from .doctor import PROBLEM_STATUSES, scan_all
 from .store import load_state, save_state, audit
 from .adopt import AdoptError
@@ -287,6 +287,46 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "ignored": sorted(ignored)}
 
 
+_DESC_KEY_RE = re.compile(r"^(description):\s*(.*)$")
+
+
+def _extract_description(md_text: str) -> str:
+    """从 SKILL.md frontmatter 提取 description。
+
+    自行扫描而非 yamllite：后者不支持 >、>- 等块标量，而技能文档
+    的多行简介普遍使用该写法。支持折叠标量（拼成单行）、字面标量
+    （保留换行）与单双引号行内标量。
+    """
+    lines = md_text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    end = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            end = i
+            break
+    if end is None:
+        return ""
+    block = lines[1:end]
+    for idx, line in enumerate(block):
+        m = _DESC_KEY_RE.match(line)
+        if not m:
+            continue
+        rest = m.group(2).strip()
+        if rest.startswith((">", "|")):
+            chunk: list[str] = []
+            for l2 in block[idx + 1:]:
+                if not l2.strip() or l2[:1] in (" ", "\t"):
+                    chunk.append(l2.strip())
+                else:
+                    break
+            return " ".join(chunk) if rest.startswith(">") else "\n".join(chunk)
+        if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in "\"'":
+            rest = rest[1:-1]
+        return " ".join(rest.split())
+    return ""
+
+
 def _canonical_descriptions() -> dict[str, str]:
     """提取 canonical 各技能 frontmatter 的 description，作为列表简介。"""
     out: dict[str, str] = {}
@@ -295,11 +335,33 @@ def _canonical_descriptions() -> dict[str, str]:
     for child in sorted(SKILLS_DIR.iterdir()):
         if not child.is_dir() or child.name.startswith(".") or ".bak-" in child.name:
             continue
-        if not (child / SKILL_MD).is_file():
+        md = child / SKILL_MD
+        if not md.is_file():
             continue
-        fm, _err = parse_frontmatter(child)
-        desc = fm.get("description") if isinstance(fm, dict) else None
-        out[child.name] = " ".join(desc.split()) if isinstance(desc, str) else ""
+        try:
+            out[child.name] = _extract_description(
+                md.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            out[child.name] = ""
+    return out
+
+
+def _platform_descriptions() -> dict[str, str]:
+    """提取各平台目录技能的 description，键为 platform/name（采纳前预览用）。"""
+    out: dict[str, str] = {}
+    for key, platform in PLATFORMS.items():
+        entries, _loose = scan_platform(platform)
+        for entry in entries:
+            md = entry.path / SKILL_MD
+            if not md.is_file():
+                continue
+            try:
+                desc = _extract_description(
+                    md.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                continue
+            if desc:
+                out[f"{key}/{entry.name}"] = desc
     return out
 
 
@@ -342,6 +404,7 @@ class Handler(BaseHTTPRequestHandler):
                 result["problem_total"] = sum(
                     result["summary"].get(k, 0) for k in PROBLEM_STATUSES)
                 result["descriptions"] = _canonical_descriptions()
+                result["platform_descriptions"] = _platform_descriptions()
                 self._send_json(result)
                 return
             if parsed.path == "/api/diff":
