@@ -148,9 +148,17 @@ def cmd_ignore(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_serve(_args: argparse.Namespace) -> int:
-    print("Web 控制台（doctor/adopt/apply 可视化）将在下一阶段提供。")
-    print("当前可先使用：skillsync doctor / adopt / apply / verify")
+def cmd_serve(args: argparse.Namespace) -> int:
+    from .webapp import serve
+    httpd, url = serve(host="127.0.0.1", port=args.port, open_browser=not args.no_browser)
+    print(f"skillsync 本机控制台：{url}")
+    print("仅绑定 127.0.0.1；Ctrl+C 退出。")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n已退出。")
+    finally:
+        httpd.server_close()
     return 0
 
 
@@ -205,7 +213,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--remove", action="store_true")
     p.set_defaults(func=cmd_ignore)
 
-    p = sub.add_parser("serve", help="启动本机 Web 控制台（即将推出）")
+    p = sub.add_parser("serve", help="启动本机 Web 控制台（仅 127.0.0.1）")
+    p.add_argument("--port", type=int, default=0, help="端口，默认自动选择空闲端口")
+    p.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     p.set_defaults(func=cmd_serve)
     return parser
 

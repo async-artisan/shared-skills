@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skillsync 控制台</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #fff; --ink: #1f2430; --muted: #6b7280;
+    --line: #e5e7eb; --brand: #2563eb; --brand-weak: #eff4ff;
+    --red: #dc2626; --red-weak: #fef2f2; --amber: #b45309; --amber-weak: #fffbeb;
+    --green: #15803d; --green-weak: #f0fdf4; --gray-weak: #f3f4f6;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         background: var(--bg); color: var(--ink); }
+  header { background: #111827; color: #fff; padding: 14px 22px; display: flex;
+           align-items: center; gap: 16px; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header .repo { font-family: var(--mono); font-size: 12px; color: #9ca3af; }
+  header .spacer { flex: 1; }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: #fff;
+           border-radius: 7px; padding: 5px 12px; color: var(--ink); }
+  button:hover { border-color: #c7cbd2; }
+  button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button.danger { color: var(--red); border-color: #f3c2c2; }
+  button.ghost { background: transparent; color: #d1d5db; border-color: #374151; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  main { max-width: 1180px; margin: 22px auto; padding: 0 20px; }
+  .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 14px 16px; }
+  .card .n { font-size: 26px; font-weight: 700; }
+  .card .t { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .card.red .n { color: var(--red); } .card.amber .n { color: var(--amber); }
+  .card.green .n { color: var(--green); }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { border-radius: 7px 7px 0 0; border-bottom: none; padding: 8px 16px;
+                 background: transparent; color: var(--muted); }
+  .tabs button.active { background: var(--panel); color: var(--ink); font-weight: 600;
+                        border-color: var(--line); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 0 10px 10px 10px;
+           padding: 6px 0 14px; min-height: 300px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line);
+           vertical-align: top; font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; background: #fafbfc; position: sticky; top: 0; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 999px;
+           font-family: var(--mono); margin-right: 4px; }
+  .b-codex { background: #ecfdf5; color: #047857; }
+  .b-claude { background: #f5f3ff; color: #6d28d9; }
+  .b-workbuddy { background: #fff7ed; color: #c2410c; }
+  .b-trae { background: #eff6ff; color: #1d4ed8; }
+  .st { font-size: 11px; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .st-fork, .st-broken-link, .st-missing-target, .st-managed-foreign, .st-missing-canonical
+    { background: var(--red-weak); color: var(--red); }
+  .st-unregistered, .st-duplicate { background: var(--amber-weak); color: var(--amber); }
+  .st-synced-copy { background: var(--brand-weak); color: var(--brand); }
+  .st-managed-ok { background: var(--green-weak); color: var(--green); }
+  .st-ignored { background: var(--gray-weak); color: var(--muted); }
+  .detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .row-actions button { padding: 3px 10px; font-size: 12px; }
+  .empty { padding: 44px; text-align: center; color: var(--muted); }
+  .syncbox { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+             padding: 14px 16px; margin-bottom: 16px; display: flex; gap: 10px; align-items: center;
+             flex-wrap: wrap; }
+  .syncbox .hint { color: var(--muted); font-size: 12px; }
+  pre.out { background: #0f172a; color: #d7e0ee; border-radius: 8px; padding: 12px;
+            font-family: var(--mono); font-size: 12px; max-height: 320px; overflow: auto;
+            white-space: pre-wrap; word-break: break-all; margin: 10px 0 0; }
+  .modal-mask { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: none;
+                align-items: center; justify-content: center; z-index: 30; }
+  .modal-mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; width: min(820px, 92vw); max-height: 88vh;
+           display: flex; flex-direction: column; overflow: hidden; }
+  .modal h3 { margin: 0; padding: 16px 20px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .modal .body { padding: 16px 20px; overflow: auto; }
+  .modal .foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex;
+                 justify-content: flex-end; gap: 8px; background: #fafbfc; }
+  .modal label.ck { display: inline-flex; gap: 6px; align-items: center; margin-right: 14px; }
+  .modal .warn { background: var(--amber-weak); color: var(--amber); border-radius: 8px;
+                 padding: 8px 12px; font-size: 12px; margin: 8px 0; }
+  #toasts { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex;
+            flex-direction: column; gap: 8px; }
+  .toast { background: #111827; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px;
+           max-width: 420px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+  .toast.err { background: #7f1d1d; } .toast.ok { background: #14532d; }
+  .diff-add { background: #14331f; color: #86efac; display: block; }
+  .diff-del { background: #3b1414; color: #fca5a5; display: block; }
+  .diff-hunk { color: #7dd3fc; display: block; }
+  .meta-line { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .skill-view { font-family: var(--mono); font-size: 12px; white-space: pre-wrap;
+                background: var(--gray-weak); border-radius: 8px; padding: 14px; max-height: 60vh;
+                overflow: auto; }
+</style>
+</head>
+<body>
+<header>
+  <h1>skillsync 控制台</h1>
+  <span class="repo" id="repo">加载中…</span>
+  <span class="spacer"></span>
+  <button class="ghost" id="refreshBtn">刷新对账</button>
+  <span class="repo" id="lastScan"></span>
+</header>
+
+<main>
+  <div class="cards" id="cards"></div>
+
+  <div class="syncbox">
+    <strong>同步下发</strong>
+    <button id="applyDry">预演 apply（dry-run）</button>
+    <button id="applyWriteLink" class="primary">执行 apply --write --link</button>
+    <span class="hint">实体副本会先改名为 .bak-时间戳；分叉内容会被安全拒绝。最近执行：<span id="lastApply">无</span></span>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="pending" class="active">待采纳</button>
+    <button data-tab="problems">问题与分叉</button>
+    <button data-tab="managed">已纳管 / 忽略</button>
+    <button data-tab="library">技能库</button>
+  </div>
+  <div class="panel" id="panel"></div>
+</main>
+
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div class="body" id="modalBody"></div>
+    <div class="foot" id="modalFoot"></div>
+  </div>
+</div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+const PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
+const STATUS_TEXT = {
+  "managed-ok": "已纳管（软链）", "synced-copy": "内容一致副本", "fork": "已分叉",
+  "unregistered": "未登记", "duplicate": "内容重复", "missing-target": "平台缺失",
+  "managed-foreign": "仓外软链", "broken-link": "软链失效",
+  "missing-canonical": "缺 canonical", "ignored": "已忽略"
+};
+let DATA = null;
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(msg, kind = "") {
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("#toasts").appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    method: opts.method || "GET",
+    headers: { "Content-Type": "application/json" },
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  const data = await res.json();
+  if (!data.ok && res.status >= 400 && path.startsWith("/api/") && !path.includes("/scan"))
+    throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+
+async function refresh() {
+  const d = await api("/api/scan");
+  DATA = d;
+  render();
+  $("#lastScan").textContent = "扫描于 " + new Date().toLocaleTimeString();
+}
+
+function groupByStatus() {
+  const g = {};
+  for (const f of DATA.findings) (g[f.status] ||= []).push(f);
+  return g;
+}
+
+function renderCards(g) {
+  const s = DATA.summary;
+  const cards = [
+    ["canonical 技能", DATA.canonical_count, ""],
+    ["已纳管软链", s["managed-ok"] || 0, "green"],
+    ["需处理问题", DATA.problem_total, DATA.problem_total ? "red" : ""],
+    ["可采纳/转链", (s["unregistered"]||0)+(s["duplicate"]||0)+(s["synced-copy"]||0), "amber"],
+    ["平台内置（跳过）", DATA.builtin_counts ? Object.values(DATA.builtin_counts).reduce((a,b)=>a+b,0) : 0, ""]
+  ];
+  $("#cards").innerHTML = cards.map(([t,n,c]) =>
+    `<div class="card ${c}"><div class="n">${n}</div><div class="t">${t}</div></div>`).join("");
+  $("#repo").textContent = DATA.repo_root;
+  const la = DATA.state?.last_apply;
+  $("#lastApply").textContent = la?.time ? `${la.time}（变更 ${la.changed ?? "?"}）` : "无";
+}
+
+function badge(p) { return `<span class="badge b-${p}">${p}</span>`; }
+function stCell(f) { return `<span class="st st-${f.status}">${STATUS_TEXT[f.status] || f.status}</span>`; }
+
+function render() {
+  const g = groupByStatus();
+  renderCards(g);
+  const tab = $("#tabs button.active").dataset.tab;
+  if (tab === "pending") renderPending(g);
+  else if (tab === "problems") renderProblems(g);
+  else if (tab === "managed") renderManaged(g);
+  else renderLibrary();
+}
+
+function renderPending(g) {
+  const rows = [
+    ...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])
+  ];
+  if (!rows.length) { $("#panel").innerHTML = `<div class="empty">没有待采纳的技能 🎉</div>`; return; }
+  $("#panel").innerHTML = `<table><thead><tr>
+    <th style="width:90px">平台</th><th>技能</th><th style="width:300px">操作</th>
+    </tr></thead><tbody>${rows.map(f => `<tr>
+      <td>${badge(f.platform)}</td>
+      <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
+      <td><div class="row-actions">
+        <button class="primary" onclick="openAdopt('${f.platform}', ${JSON.stringify(f.name).replace(/"/g,'&quot;')})">采纳…</button>
+        <button onclick="ignoreOne('${f.platform}', ${JSON.stringify(f.name).replace(/"/g,'&quot;')})">忽略</button>
+      </div></td></tr>`).join("")}</tbody></table>`;
+}
+
+function renderProblems(g) {
+  const order = ["fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical"];
+  let html = "";
+  for (const status of order) {
+    const rows = g[status] || [];
+    if (!rows.length) continue;
+    html += rows.map(f => `<tr>
+      <td>${f.platform === "-" ? "" : badge(f.platform)}</td>
+      <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
+      <td>${stCell(f)}</td>
+      <td><div class="row-actions">${problemActions(f)}</div></td></tr>`).join("");
+  }
+  $("#panel").innerHTML = html
+    ? `<table><thead><tr><th style="width:90px">平台</th><th>技能</th><th style="width:110px">状态</th><th style="width:300px">操作</th></tr></thead><tbody>${html}</tbody></table>`
+    : `<div class="empty">没有需要处理的问题 🎉</div>`;
+}
+
+function problemActions(f) {
+  const nm = JSON.stringify(f.name).replace(/"/g, "&quot;");
+  if (f.status === "fork")
+    return `<button onclick="openDiff('${f.platform}', ${nm})">查看差异</button>
+      <button onclick="resolveOne('${f.platform}', ${nm}, 'canonical')">以仓为准</button>
+      <button class="danger" onclick="resolveOne('${f.platform}', ${nm}, 'platform')">以平台为准</button>`;
+  if (f.status === "broken-link" || f.status === "missing-target")
+    return `<button class="primary" onclick="applyOnly('${f.platform}', ${nm})">apply 修复</button>`;
+  if (f.status === "managed-foreign")
+    return `<button class="danger" onclick="applyForce('${f.platform}', ${nm})">强制换链</button>`;
+  return "";
+}
+
+function renderManaged(g) {
+  const ok = g["managed-ok"] || [];
+  const ig = g["ignored"] || [];
+  let html = "";
+  if (ok.length) html += `<thead><tr><th style="width:90px">平台</th><th>技能</th><th style="width:140px">状态</th></tr></thead>
+    <tbody>${ok.map(f => `<tr><td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>
+    <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody>`;
+  if (ig.length) html += `<tbody>${ig.map(f => `<tr><td>${badge(f.platform)}</td>
+    <td>${esc(f.name)} <span class="st st-ignored">已忽略</span>
+    <div class="row-actions" style="margin-top:4px"><button onclick="unignoreOne('${f.platform}', ${JSON.stringify(f.name).replace(/"/g,'&quot;')})">取消忽略</button></div></td><td></td></tr>`).join("")}</tbody>`;
+  $("#panel").innerHTML = html ? `<table>${html}</table>` : `<div class="empty">暂无已纳管技能</div>`;
+}
+
+function renderLibrary() {
+  const skills = DATA.findings.filter(f => f.status === "managed-ok");
+  const slugs = [...new Set(skills.map(f => f.name))].sort();
+  if (!slugs.length) { $("#panel").innerHTML = `<div class="empty">技能库为空</div>`; return; }
+  $("#panel").innerHTML = `<table><thead><tr><th>技能</th><th>已下发平台</th><th style="width:120px"></th></tr></thead>
+    <tbody>${slugs.map(slug => {
+      const plats = [...new Set(skills.filter(f => f.name === slug).map(f => f.platform))];
+      return `<tr><td><strong>${esc(slug)}</strong></td><td>${plats.map(badge).join("")}</td>
+      <td><div class="row-actions"><button onclick="viewSkill(${JSON.stringify(slug).replace(/"/g,'&quot;')})">查看 SKILL.md</button></div></td></tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+// ---- 模态框 ----
+function modal(title, bodyHtml, footHtml) {
+  $("#modalTitle").textContent = title;
+  $("#modalBody").innerHTML = bodyHtml;
+  $("#modalFoot").innerHTML = footHtml;
+  $("#modalMask").classList.add("show");
+}
+function closeModal() { $("#modalMask").classList.remove("show"); }
+$("#modalMask").addEventListener("click", e => { if (e.target.id === "modalMask") closeModal(); });
+
+window.openAdopt = function (platform, name) {
+  const checks = PLATFORMS.map(p =>
+    `<label class="ck"><input type="checkbox" value="${p}" ${p === platform ? "checked" : ""}>${p}</label>`
+  ).join("");
+  modal(`采纳技能：${name}`, `
+    <div class="meta-line">来源平台：${badge(platform)}　采纳＝复制进 canonical（源目录不动）</div>
+    <div>下发到：${checks}</div>
+    <div style="margin-top:10px"><label class="ck"><input type="checkbox" id="adoptLink" checked>
+      采纳后立即软链下发（源实体目录备份为 .bak-时间戳）</label></div>
+    <div class="warn">将生成一条中文 Git 提交所需的工作区改动；请自行检查后再 commit。</div>`,
+    `<button onclick="closeModal()">取消</button>
+     <button class="primary" id="adoptConfirm">确认采纳</button>`);
+  $("#adoptConfirm").onclick = async () => {
+    const targets = [...document.querySelectorAll(".modal .body input[type=checkbox][value]")]
+      .filter(c => c.checked && PLATFORMS.includes(c.value)).map(c => c.value);
+    const btn = $("#adoptConfirm"); btn.disabled = true;
+    try {
+      const r = await api("/api/adopt", { method: "POST",
+        body: { platform, name, targets, link: $("#adoptLink").checked } });
+      closeModal();
+      toast(`已采纳 ${r.result.slug}：${r.result.detail}`, "ok");
+      await refresh();
+    } catch (e) { toast(e.message, "err"); btn.disabled = false; }
+  };
+};
+
+window.openDiff = async function (platform, name) {
+  modal(`${name}：canonical vs ${platform}`, `<div class="meta-line">加载中…</div>`,
+    `<button onclick="closeModal()">关闭</button>
+     <button onclick="resolveOne('${platform}', ${JSON.stringify(name).replace(/"/g,"&quot;")}, 'canonical')">以仓为准（换软链）</button>
+     <button class="danger" onclick="resolveOne('${platform}', ${JSON.stringify(name).replace(/"/g,"&quot;")}, 'platform')">以平台为准</button>`);
+  try {
+    const d = await api(`/api/diff?platform=${platform}&name=${encodeURIComponent(name)}`);
+    const colored = d.diff.split("\n").map(l => {
+      let cls = "";
+      if (l.startsWith("+") && !l.startsWith("+++")) cls = "diff-add";
+      else if (l.startsWith("-") && !l.startsWith("---")) cls = "diff-del";
+      else if (l.startsWith("@@")) cls = "diff-hunk";
+      return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
+    }).join("\n");
+    $("#modalBody").innerHTML =
+      `<div class="meta-line">绿＝canonical 独有 / 红＝${platform} 独有；两侧文件均已备份，裁决不会丢内容</div>
+       <pre class="out">${colored || "（无文本差异）"}</pre>`;
+  } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+};
+
+window.viewSkill = async function (slug) {
+  modal(`canonical/${slug}/SKILL.md`, `<div class="meta-line">只读查看（不在网页编辑，避免产生第二事实源）</div>`,
+    `<button onclick="closeModal()">关闭</button>`);
+  try {
+    const d = await api(`/api/skill?slug=${encodeURIComponent(slug)}`);
+    $("#modalBody").innerHTML = `<div class="skill-view">${esc(d.content)}</div>`;
+  } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+};
+
+window.resolveOne = async function (platform, name, winner) {
+  const who = winner === "canonical" ? "以共享仓版本覆盖平台副本" : "以平台版本覆盖共享仓";
+  if (!confirm(`确认裁决【${name}】？\n${who}\n两侧实体目录都会先备份为 .bak-时间戳，随后原位换成软链。`)) return;
+  try {
+    const r = await api("/api/resolve", { method: "POST", body: { platform, name, winner } });
+    closeModal(); toast(`裁决完成：${r.result.detail}`, "ok"); await refresh();
+  } catch (e) { toast(e.message, "err"); }
+};
+
+window.ignoreOne = async function (platform, name) {
+  try { await api("/api/ignore", { method: "POST", body: { platform, name } });
+    toast(`已忽略 ${platform}/${name}`, "ok"); await refresh();
+  } catch (e) { toast(e.message, "err"); }
+};
+window.unignoreOne = async function (platform, name) {
+  try { await api("/api/ignore", { method: "POST", body: { platform, name, remove: true } });
+    toast(`已取消忽略`, "ok"); await refresh();
+  } catch (e) { toast(e.message, "err"); }
+};
+
+async function runApply(write, link, force, platform, only) {
+  const label = write ? "这会实际改动平台目录（实体目录先备份）。确认执行？" : "预演不会改动任何文件。";
+  if (!confirm(label)) return;
+  try {
+    const r = await api("/api/apply", { method: "POST",
+      body: { write, link, force, platform: platform || null, only: only || null } });
+    const lines = r.actions.map(a => `[${a.platform}] ${a.slug} ${a.kind} — ${a.detail}`);
+    modal(write ? "apply 执行结果" : "apply 预演结果",
+      `<div class="meta-line">${r.refused.length ? r.refused.length + " 项被安全拒绝" : "全部可执行"}</div>
+       <pre class="out">${esc(lines.join("\n") || "（无动作）")}</pre>`,
+      `<button onclick="closeModal()">关闭</button>`);
+    if (write) await refresh();
+  } catch (e) { toast(e.message, "err"); }
+}
+window.applyOnly = (p, n) => runApply(true, true, false, p, n);
+window.applyForce = (p, n) => runApply(true, true, true, p, n);
+
+$("#applyDry").onclick = () => runApply(false, true, false);
+$("#applyWriteLink").onclick = () => runApply(true, true, false);
+$("#refreshBtn").onclick = refresh;
+$("#tabs").addEventListener("click", e => {
+  if (e.target.dataset.tab) {
+    document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
+    e.target.classList.add("active");
+    render();
+  }
+});
+
+refresh().catch(e => toast("初始扫描失败：" + e.message, "err"));
+</script>
+</body>
+</html>
