@@ -587,6 +587,7 @@ function renderPending(rows) {
       <td>${badge(f.platform)}</td>
       <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
       <td><div class="row-actions">
+        <button onclick="viewSource('${f.platform}', ${jstr(f.name)})">查看</button>
         <button class="primary" onclick="openAdopt('${f.platform}', ${jstr(f.name)})">采纳…</button>
         <button onclick="ignoreOne('${f.platform}', ${jstr(f.name)})">忽略</button>
       </div></td></tr>`).join("")}</tbody></table></div>${pagerBar("pending", pg)}`;
@@ -699,12 +700,62 @@ window.openDiff = async function (platform, name) {
   } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 };
 
+// SKILL.md 只读查看器：英文内容提供离线英译中切换（译文仅预览，不落盘）
+function isMostlyEnglish(text) {
+  const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const lat = (text.match(/[A-Za-z]/g) || []).length;
+  return lat > 20 && cjk < Math.max(3, lat / 4);
+}
+
+function showSkillViewer(title, meta, content) {
+  const english = isMostlyEnglish(content);
+  modal(title, `<div class="meta-line">${meta}</div><pre class="skill-view" id="skillPre"></pre>`,
+    `<button onclick="closeModal()">关闭</button>` +
+    (english ? `<button class="primary" id="translateBtn">译为中文</button>` : ""));
+  const pre = $("#skillPre");
+  pre.textContent = content;
+  const btn = $("#translateBtn");
+  if (!btn) return;
+  let translated = null, showingZh = false;
+  btn.onclick = async () => {
+    if (translated !== null) {
+      showingZh = !showingZh;
+      pre.textContent = showingZh ? translated : content;
+      btn.textContent = showingZh ? "查看原文" : "译为中文";
+      return;
+    }
+    btn.disabled = true; btn.textContent = "翻译中…（本地离线模型）";
+    try {
+      const r = await api("/api/translate", { method: "POST", body: { text: content } });
+      if (r.skipped) { btn.remove(); return; }
+      translated = r.translated; showingZh = true;
+      pre.textContent = translated;
+      btn.textContent = "查看原文"; btn.disabled = false;
+      toast(`翻译引擎：${r.engine}（仅预览，不写文件）`, "ok");
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "译为中文";
+      toast(e.message, "err");
+    }
+  };
+}
+
+window.viewSource = async function (platform, name) {
+  modal(`${platform} · ${name}`, `<div class="meta-line">加载中…</div>`,
+    `<button onclick="closeModal()">关闭</button>`);
+  try {
+    const d = await api(`/api/source?platform=${platform}&name=${encodeURIComponent(name)}`);
+    showSkillViewer(`${platform}/${name} · SKILL.md（采纳前预览）`,
+      "READ-ONLY · 平台目录原文，只读预览不会改动源目录", d.content);
+  } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
+};
+
 window.viewSkill = async function (slug) {
-  modal(`canonical/${slug}/SKILL.md`, `<div class="meta-line">READ-ONLY · 不在网页编辑，避免产生第二事实源</div>`,
+  modal(`canonical/${slug}/SKILL.md`, `<div class="meta-line">加载中…</div>`,
     `<button onclick="closeModal()">关闭</button>`);
   try {
     const d = await api(`/api/skill?slug=${encodeURIComponent(slug)}`);
-    $("#modalBody").innerHTML = `<pre class="skill-view">${esc(d.content)}</pre>`;
+    showSkillViewer(`canonical/${slug}/SKILL.md`,
+      "READ-ONLY · 不在网页编辑，避免产生第二事实源", d.content);
   } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 };
 

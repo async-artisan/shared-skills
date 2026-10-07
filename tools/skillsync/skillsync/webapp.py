@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import contextlib
 import difflib
+import hashlib
 import io
 import json
+import re
 import threading
 from dataclasses import asdict
 from http import HTTPStatus
@@ -88,6 +90,138 @@ def _skill_file(slug: str) -> dict[str, str]:
     if not path.is_file():
         raise ApiError("canonical 缺少 SKILL.md", 404)
     return {"slug": slug, "content": path.read_text(encoding="utf-8", errors="replace")}
+
+
+def _source_skill(platform_key: str, name: str) -> dict[str, str]:
+    """读取平台目录中的 SKILL.md 原文（采纳前预览用，只读不写）。"""
+    platform = PLATFORMS.get(platform_key)
+    if platform is None:
+        raise ApiError(f"未知平台：{platform_key}")
+    entries, _ = scan_platform(platform)
+    entry = next((item for item in entries if item.name == name), None)
+    if entry is None:
+        raise ApiError(f"平台目录中找不到：{name}", 404)
+    path = entry.path / SKILL_MD
+    if not path.is_file():
+        raise ApiError("该技能目录缺少 SKILL.md", 404)
+    return {
+        "platform": platform_key,
+        "name": name,
+        "content": path.read_text(encoding="utf-8", errors="replace"),
+    }
+
+
+# ---- 英译中：Argos Translate（MIT 开源、完全离线） ----
+#
+# 仅做"看懂英文技能说明"的只读辅助翻译：进程内加载本地 en→zh 模型，
+# 翻译过程中用占位符保护 frontmatter、围栏代码块、行内代码、URL 与
+# markdown 标记，译文只用于网页预览，绝不回写任何文件。
+
+_TRANS_LOCK = threading.Lock()
+_TRANSLATION_CACHE: dict[str, Any] = {}
+_RESULT_CACHE: dict[str, str] = {}
+_RESULT_CACHE_MAX = 64
+_TOKEN_RE = re.compile(r"`[^`\n]+`|https?://[^\s)]+|\*\*|__")
+# Argos 模型在超短行上偶尔吐出字幕样式标签（如 {\fn方正粗倩简体\fs12...}）
+_ASS_TAG_RE = re.compile(r"\{\\[^{}]*\}")
+_LEAD_MARKER_RE = re.compile(r"^\s*(?:#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s?)")
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+_LATIN_RE = re.compile(r"[A-Za-z]")
+_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+_FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.S)
+
+
+def _is_mostly_chinese(text: str) -> bool:
+    cjk = len(_CJK_RE.findall(text))
+    latin = len(_LATIN_RE.findall(text))
+    return cjk >= max(3, latin // 4)
+
+
+def _translate_markdown(text: str) -> str:
+    try:
+        import argostranslate.settings as argos_settings
+        import argostranslate.translate as argos_tr
+    except ImportError as exc:
+        raise ApiError(
+            "翻译引擎未安装：python3 -m pip install argostranslate", 503) from exc
+    # 强制纯 Python 分句器，避免 stanza 模型去 huggingface 联网下载
+    argos_settings.chunk_type = argos_settings.ChunkType.MINISBD
+
+    with _TRANS_LOCK:
+        translation = _TRANSLATION_CACHE.get("en->zh")
+        if translation is None:
+            languages = argos_tr.get_installed_languages()
+            en = next((l for l in languages if l.code == "en"), None)
+            zh = next((l for l in languages if l.code.startswith("zh")), None)
+            if en is None or zh is None:
+                raise ApiError(
+                    "缺少 en→zh 离线语言包："
+                    "python3 -m argos install en zh（或用 argostranslate 下载）", 503)
+            translation = en.get_translation(zh)
+            _TRANSLATION_CACHE["en->zh"] = translation
+
+    store: list[str] = []
+
+    def stash(match: re.Match[str]) -> str:
+        store.append(match.group(0))
+        return f"TK{len(store) - 1}TK"
+
+    out_lines: list[str] = []
+    in_fence = False
+    body = text
+    fm_match = _FRONTMATTER_RE.match(text)
+    if fm_match:
+        out_lines.append(fm_match.group(0).rstrip("\n"))
+        body = text[fm_match.end():]
+
+    for line in body.splitlines():
+        fence = _FENCE_RE.match(line)
+        if fence:
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        if in_fence or not line.strip():
+            out_lines.append(line)
+            continue
+        # 行首 markdown 标记（标题/列表/引用）位置固定，翻译后原位补回
+        lead = _LEAD_MARKER_RE.match(line)
+        prefix = lead.group(0) if lead else ""
+        rest = line[len(prefix):]
+        protected = _TOKEN_RE.sub(stash, rest)
+        translated = translation.translate(protected)
+        translated = _ASS_TAG_RE.sub("", translated)
+        # 还原占位符（顺序可能被模型调整，按编号回填）
+        for idx, original in enumerate(store):
+            translated = translated.replace(f"TK{idx}TK", original)
+        if prefix and not translated.lstrip().startswith(prefix.strip()):
+            translated = prefix + translated.lstrip()
+        out_lines.append(translated)
+
+    return "\n".join(out_lines)
+
+
+def _do_translate(body: dict[str, Any]) -> dict[str, Any]:
+    text = body.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise ApiError("text 必填")
+    if len(text) > 60_000:
+        raise ApiError("单次翻译上限 60KB")
+    if _is_mostly_chinese(text):
+        return {"ok": True, "skipped": True, "engine": "none",
+                "reason": "已是中文内容", "translated": text}
+    cache_key = hashlib.sha1(text.encode("utf-8")).hexdigest()
+    with _TRANS_LOCK:
+        cached = _RESULT_CACHE.get(cache_key)
+    if cached is not None:
+        return {"ok": True, "skipped": False,
+                "engine": "argos-translate · 离线 en→zh（缓存）", "translated": cached}
+    translated = _translate_markdown(text)
+    with _TRANS_LOCK:
+        if len(_RESULT_CACHE) >= _RESULT_CACHE_MAX:
+            _RESULT_CACHE.clear()
+        _RESULT_CACHE[cache_key] = translated
+    return {"ok": True, "skipped": False,
+            "engine": "argos-translate · 离线 en→zh", "translated": translated}
 
 
 # ---- 动作处理（均复用 CLI 同一批函数） ----
@@ -202,6 +336,11 @@ class Handler(BaseHTTPRequestHandler):
                 q = parse_qs(parsed.query)
                 self._send_json(_skill_file(q.get("slug", [""])[0]))
                 return
+            if parsed.path == "/api/source":
+                q = parse_qs(parsed.query)
+                self._send_json(_source_skill(q.get("platform", [""])[0],
+                                              q.get("name", [""])[0]))
+                return
             self._send_json({"ok": False, "error": "not found"}, 404)
         except ApiError as exc:
             self._send_json({"ok": False, "error": str(exc)}, exc.status)
@@ -219,6 +358,7 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/resolve": _do_resolve,
                 "/api/apply": _do_apply,
                 "/api/ignore": _do_ignore,
+                "/api/translate": _do_translate,
             }
             handler = routes.get(parsed.path)
             if handler is None:
