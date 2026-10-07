@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, parse_frontmatter
+from . import undo as undo_mod
 from .store import audit, load_catalog
 
 
@@ -65,13 +66,17 @@ def resolve(platform_key: str, slug: str, winner: str, dry_run: bool = False) ->
         return ResolveResult(slug, platform_key, winner, f"预演：{action}")
 
     target.parent.mkdir(parents=True, exist_ok=True)
+    tx = undo_mod.Tx("resolve", slug)
     if winner == "canonical":
         backup = target.with_name(target.name + ".bak-" + _stamp())
+        tx.unbak(backup, target)  # 撤销 = 删软链 + 平台实体目录改回原名
         target.rename(backup)
         os.symlink(canonical, target)
         detail = f"平台目录已备份为 {backup.name}，原位换成软链（canonical 胜出）"
     else:
         canonical_backup = canonical.with_name(canonical.name + ".canonical.bak-" + _stamp())
+        # 撤销只需一条 restore_bak_dir（内部先清目标再改回原名），勿叠加 rm_tree
+        tx.restore_bak_dir(canonical_backup, canonical)
         shutil.copytree(canonical, canonical_backup)
         # 用平台内容重建 canonical
         shutil.rmtree(canonical)
@@ -83,10 +88,13 @@ def resolve(platform_key: str, slug: str, winner: str, dry_run: bool = False) ->
                 f"已保留旧 canonical 备份 {canonical_backup.name}，请人工处理"
             )
         backup = target.with_name(target.name + ".bak-" + _stamp())
+        tx.unbak(backup, target)
         target.rename(backup)
         os.symlink(canonical, target)
         detail = (f"canonical 旧版备份为 {canonical_backup.name}，"
                   f"已采用平台内容；平台目录备份为 {backup.name} 并换成软链")
 
-    audit("resolve", slug=slug, platform=platform_key, winner=winner, detail=detail)
+    audit("resolve", slug=slug, platform=platform_key, winner=winner,
+          detail=detail, undo=tx.id)
+    tx.commit(detail)
     return ResolveResult(slug, platform_key, winner, detail)

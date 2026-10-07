@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill
+from . import undo as undo_mod
 from .store import audit, load_catalog, load_state, save_state
 
 
@@ -84,34 +85,42 @@ def _readlink(path: Path) -> str:
 
 
 def run(write: bool = False, platform: str | None = None, only: str | None = None,
-        link: bool = False, force: bool = False) -> list[Action]:
+        link: bool = False, force: bool = False,
+        tx: "undo_mod.Tx | None" = None) -> list[Action]:
     pf = {platform} if platform else None
     actions = _plan(pf, only, link_copies=link, force=force)
     if write:
+        owned = tx or undo_mod.Tx("apply")
         catalog = load_catalog()
         for a in actions:
-            _execute(a)
+            _execute(a, owned)
         save_state(_touch_last_apply(actions))
+        changed = sum(1 for a in actions if a.kind not in ("ok", "refused"))
         audit("apply", platform=platform or "*",
-              executed=sum(1 for a in actions if a.kind not in ("ok", "refused")),
-              refused=sum(1 for a in actions if a.kind == "refused"))
+              executed=changed,
+              refused=sum(1 for a in actions if a.kind == "refused"), undo=owned.id)
+        if tx is None:
+            owned.commit(f"下发 {changed} 处变更" + (f"（{only}）" if only else ""))
     return actions
 
 
-def _execute(a: Action) -> None:
+def _execute(a: Action, tx: "undo_mod.Tx") -> None:
     platform = PLATFORMS[a.platform]
     target = platform.skills_dir / a.slug
     canonical = SKILLS_DIR / a.slug
     if a.kind in ("link-create",):
+        tx.rm_link(target)  # 撤销 = 移除新建软链
         platform.skills_dir.mkdir(parents=True, exist_ok=True)
         os.symlink(canonical, target)
         a.detail = f"已创建软链 → {canonical}"
     elif a.kind in ("relink-broken", "relink-foreign"):
+        tx.restore_link(target, _readlink(target))  # 撤销 = 恢复原指向
         target.unlink()
         os.symlink(canonical, target)
         a.detail = f"已替换为软链 → {canonical}"
     elif a.kind == "copy-to-link":
         backup = target.with_name(target.name + ".bak-" + datetime.now().strftime("%Y%m%d%H%M%S"))
+        tx.unbak(backup, target)  # 撤销 = 删软链 + 实体目录改回原名
         target.rename(backup)
         os.symlink(canonical, target)
         a.detail = f"原目录已备份为 {backup.name}，并创建软链"

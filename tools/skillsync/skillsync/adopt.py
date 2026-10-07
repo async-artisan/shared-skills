@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import apply as apply_mod
+from . import undo as undo_mod
 from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, parse_frontmatter, scan_platform
 from .security import scan_skill
 from .store import audit, load_catalog, save_catalog
@@ -45,7 +46,8 @@ def _find_source(platform_key: str, name: str) -> Path:
 
 def adopt(platform_key: str, name: str, target_platforms: list[str] | None = None,
           link: bool = False, conflict: str = "skip", slug: str | None = None,
-          source_path: str | Path | None = None) -> AdoptResult:
+          source_path: str | Path | None = None,
+          tx: "undo_mod.Tx | None" = None) -> AdoptResult:
     if platform_key not in PLATFORMS:
         raise AdoptError(f"未知平台：{platform_key}")
     if source_path is not None:
@@ -89,7 +91,9 @@ def adopt(platform_key: str, name: str, target_platforms: list[str] | None = Non
     for w in warnings:
         print(f"  [{w['level']}] {w['file']}: {w['rule']} -> {w['snippet']}")
 
-    # 复制新增（绝不改动源目录）
+    # 复制新增（绝不改动源目录）；先记录撤销指令再落盘
+    owned = tx or undo_mod.Tx("adopt", slug)
+    owned.rm_tree(dest)
     SKILLS_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source, dest, ignore=shutil.ignore_patterns(".DS_Store", "__pycache__"))
     # 落盘复核
@@ -110,15 +114,18 @@ def adopt(platform_key: str, name: str, target_platforms: list[str] | None = Non
         "description_zh": "",
         "adopted_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
     }
+    owned.catalog_set(slug, None)
     save_catalog(catalog)
     audit("adopt", slug=slug, platform=platform_key, targets=platforms,
-          security_warnings=warn_n, source=str(source))
+          security_warnings=warn_n, source=str(source), undo=owned.id)
 
     detail = "已复制进 canonical 并登记 catalog"
     if link:
-        actions = apply_mod.run(write=True, only=slug, link=True)
+        actions = apply_mod.run(write=True, only=slug, link=True, tx=owned)
         changed = [f"{a.platform}:{a.kind}" for a in actions if a.kind not in ("ok", "refused")]
         detail += "；软链下发：" + (", ".join(changed) if changed else "无变更")
+    if tx is None:
+        owned.commit(detail)
     return AdoptResult(slug, platform_key, "adopted", detail, warn_n)
 
 

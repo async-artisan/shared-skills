@@ -481,10 +481,10 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <button data-tab="pending" class="active" title="平台目录里的新技能或重复副本，尚未纳入共享仓；可查看详情、采纳进 canonical 或忽略">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
-    <button data-tab="problems" title="需要处理的异常：内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异或一键修复">问题与分叉<span class="tab-n" id="cnt-problems">0</span></button>
+    <button data-tab="library" class="active" title="共享仓 canonical 的技能本体（唯一事实源），可查看 SKILL.md">技能库<span class="tab-n" id="cnt-library">0</span></button>
+    <button data-tab="pending" title="平台目录里的新技能或重复副本，尚未纳入共享仓；可查看详情、采纳进 canonical 或忽略">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
     <button data-tab="managed" title="已通过软链下发到各平台的技能，以及被忽略、不再参与同步的技能">已纳管 / 忽略<span class="tab-n" id="cnt-managed">0</span></button>
-    <button data-tab="library" title="共享仓 canonical 的技能本体（唯一事实源），可查看 SKILL.md">技能库<span class="tab-n" id="cnt-library">0</span></button>
+    <button data-tab="problems" title="需要处理的异常：内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异或一键修复">问题与分叉<span class="tab-n" id="cnt-problems">0</span></button>
     <button data-tab="history" title="adopt / resolve / apply / ignore 全部操作的结构化留痕（registry/audit.logl），最新在前">操作历史<span class="tab-n" id="cnt-history">0</span></button>
   </div>
   <div class="tabs-hint" id="tabsHint"></div>
@@ -791,7 +791,7 @@ function problemActions(f) {
     return `<button class="danger" onclick="applyForce('${f.platform}', ${nm})">强制换链</button>`;
   if (f.status === "bad-frontmatter")
     return f.platform === "-"
-      ? `<button onclick="viewSkill(${nm})">查看 SKILL.md</button>`
+      ? `<button onclick="viewSkill(${nm})">查看</button>`
       : `<button onclick="viewSource('${f.platform}', ${nm})">查看</button>`;
   return "";
 }
@@ -832,7 +832,7 @@ function renderLibrary(rows) {
   const pg = pageSlice(rows, "library");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
     <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ")}</td>
-      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看 SKILL.md</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
+      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
 }
 
 // ---- 操作历史（registry/audit.logl 的结构化留痕，最新在前） ----
@@ -847,6 +847,23 @@ async function ensureHistory() {
   HISTORY = d.entries || [];
   return HISTORY;
 }
+
+// ---- 撤销：/api/undo 状态表 + 行内撤销 ----
+const UNDO_MAP = {}; // id -> executed(bool)
+async function ensureUndoMap() {
+  const d = await api("/api/undo");
+  (d.entries || []).forEach(u => { UNDO_MAP[u.id] = !!u.executed; });
+}
+window.undoOne = async function (id) {
+  if (!confirm("确认撤销该操作？将按记录逆序回放到操作前状态。")) return;
+  try {
+    const r = await api("/api/undo", { method: "POST", body: { id } });
+    UNDO_MAP[id] = true;
+    toast(`已撤销：${(r.results || []).length} 步恢复完成`, "ok");
+    HISTORY = null;
+    await render();
+  } catch (e) { toast(e.message, "err"); }
+};
 
 // 历史行匹配：平台筛选按记录平台；搜索覆盖整条记录的全部字段
 function matchHistoryRow(rec) {
@@ -868,7 +885,9 @@ function historyDetail(rec) {
 function renderHistoryTab() {
   if (HISTORY) { paintHistory(HISTORY); return; }
   $("#panel").innerHTML = emptyBlock("···", "加载操作历史…", "READING AUDIT.LOGL");
-  ensureHistory().then(() => { if (curTab() === "history") render(); })
+  ensureHistory()
+    .then(() => ensureUndoMap())
+    .then(() => { if (curTab() === "history") render(); })
     .catch(e => { $("#panel").innerHTML = `<div class="warn">${esc(e.message)}</div>`; });
 }
 
@@ -897,10 +916,17 @@ function renderHistory(rows) {
       const act = rec.action || "?";
       const plat = rec.platform === "*" ? "全部平台"
         : rec.platform && rec.platform !== "-" ? badge(rec.platform) : "";
+      let undoCtl = "";
+      if (rec.undo && act !== "undo") {
+        const done = UNDO_MAP[rec.undo];
+        undoCtl = done === undefined ? "" : done
+          ? ` <span class="muted" style="font-size:11px">已撤销</span>`
+          : ` <button style="padding:2px 10px;font-size:11px" onclick="undoOne('${esc(rec.undo)}')">撤销</button>`;
+      }
       return `<tr>
         <td><span class="hist-time">${esc(when)}</span></td>
         <td><span class="st ${ACTION_CLS[act] || ""}">${esc(ACTION_TEXT[act] || act)}</span></td>
-        <td><strong>${esc(rec.slug || "—")}</strong> ${plat}
+        <td><strong>${esc(rec.slug || "—")}</strong> ${plat}${undoCtl}
           <div class="detail">${esc(historyDetail(rec)) || "—"}</div></td></tr>`;
     }).join("")}</tbody></table></div>${pagerBar("history", pg)}`;
 }

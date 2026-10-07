@@ -26,6 +26,7 @@ from . import adopt as adopt_mod
 from . import apply as apply_mod
 from . import remote as remote_mod
 from . import resolve as resolve_mod
+from . import undo as undo_mod
 from .core import (
     AUDIT_PATH,
     IGNORE_DIRS,
@@ -352,13 +353,18 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     key = f"{platform}/{name}"
     state = load_state()
     ignored = set(state.get("ignored", []))
+    add = not bool(body.get("remove"))
+    tx = undo_mod.Tx("ignore", name)
+    tx.state_ignored(key, add)  # 撤销 = 反向恢复
     if body.get("remove"):
         ignored.discard(key)
     else:
         ignored.add(key)
     state["ignored"] = sorted(ignored)
     save_state(state)
-    audit("ignore", slug=name, platform=platform, remove=bool(body.get("remove")), via="web")
+    audit("ignore", slug=name, platform=platform, remove=bool(body.get("remove")),
+          via="web", undo=tx.id)
+    tx.commit(f"{'忽略' if add else '取消忽略'} {key}")
     return {"ok": True, "ignored": sorted(ignored)}
 
 
@@ -392,6 +398,8 @@ def _do_import_confirm(body: dict[str, Any]) -> dict[str, Any]:
     dest = SKILLS_DIR / name
     if dest.exists():
         raise ApiError(f"skills/{name} 已存在，请改用其他名称")
+    tx = undo_mod.Tx("import", name)
+    tx.rm_tree(dest)  # 撤销 = 删除导入目录
     written = 0
     for rel, data in preview["blobs"].items():
         parts = PurePosixPath(rel).parts
@@ -402,9 +410,24 @@ def _do_import_confirm(body: dict[str, Any]) -> dict[str, Any]:
         target.write_bytes(data)
         written += 1
     audit("import", slug=name, platform="canonical",
-          source=preview["source"], files=written, via="web")
+          source=preview["source"], files=written, via="web", undo=tx.id)
+    tx.commit(f"导入 {name}（{written} 个文件）")
     return {"ok": True, "name": name, "files": written,
             "description": preview["description"]}
+
+
+def _list_undo() -> dict[str, Any]:
+    return {"ok": True, "entries": undo_mod.list_undo(200)}
+
+
+def _do_undo(body: dict[str, Any]) -> dict[str, Any]:
+    uid = str(body.get("id") or "").strip()
+    if not uid:
+        raise ApiError("id 必填")
+    try:
+        return undo_mod.execute(uid)
+    except undo_mod.UndoError as exc:
+        raise ApiError(str(exc))
 
 
 def _canonical_descriptions() -> dict[str, str]:
@@ -539,6 +562,9 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/poll":
                 self._send_json({"ok": True, "sig": _scan_signature()})
                 return
+            if parsed.path == "/api/undo":
+                self._send_json(_list_undo())
+                return
             self._send_json({"ok": False, "error": "not found"}, 404)
         except ApiError as exc:
             self._send_json({"ok": False, "error": str(exc)}, exc.status)
@@ -559,6 +585,7 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/translate": _do_translate,
                 "/api/import": _do_import_preview,
                 "/api/import/confirm": _do_import_confirm,
+                "/api/undo": _do_undo,
             }
             handler = routes.get(parsed.path)
             if handler is None:
