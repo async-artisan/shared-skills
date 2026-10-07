@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from . import adopt as adopt_mod
 from . import apply as apply_mod
 from . import resolve as resolve_mod
-from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, scan_platform
+from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill, parse_frontmatter, scan_platform
 from .doctor import PROBLEM_STATUSES, scan_all
 from .store import load_state, save_state, audit
 from .adopt import AdoptError
@@ -287,6 +287,22 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "ignored": sorted(ignored)}
 
 
+def _canonical_descriptions() -> dict[str, str]:
+    """提取 canonical 各技能 frontmatter 的 description，作为列表简介。"""
+    out: dict[str, str] = {}
+    if not SKILLS_DIR.is_dir():
+        return out
+    for child in sorted(SKILLS_DIR.iterdir()):
+        if not child.is_dir() or child.name.startswith(".") or ".bak-" in child.name:
+            continue
+        if not (child / SKILL_MD).is_file():
+            continue
+        fm, _err = parse_frontmatter(child)
+        desc = fm.get("description") if isinstance(fm, dict) else None
+        out[child.name] = " ".join(desc.split()) if isinstance(desc, str) else ""
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "skillsync/0.1"
 
@@ -325,6 +341,7 @@ class Handler(BaseHTTPRequestHandler):
                                    "last_apply": state.get("last_apply", {})}
                 result["problem_total"] = sum(
                     result["summary"].get(k, 0) for k in PROBLEM_STATUSES)
+                result["descriptions"] = _canonical_descriptions()
                 self._send_json(result)
                 return
             if parsed.path == "/api/diff":
