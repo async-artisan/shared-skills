@@ -191,6 +191,12 @@
 
   /* ---------- Tabs ---------- */
   .tabs { flex: none; display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 4px; }
+  .tabs-hint {
+    flex: none; padding: 7px 14px 0;
+    font-size: 11.5px; line-height: 1.5; color: var(--muted);
+  }
+  .tabs-hint::before { content: "ⓘ"; font-family: var(--mono); color: var(--amber);
+                       margin-right: 7px; font-weight: 700; }
   .tabs button {
     background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
     border-radius: 0; color: var(--muted); padding: 10px 14px;
@@ -401,11 +407,12 @@
   </div>
 
   <div class="tabs" id="tabs">
-    <button data-tab="pending" class="active">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
-    <button data-tab="problems">问题与分叉<span class="tab-n" id="cnt-problems">0</span></button>
-    <button data-tab="managed">已纳管 / 忽略<span class="tab-n" id="cnt-managed">0</span></button>
-    <button data-tab="library">技能库<span class="tab-n" id="cnt-library">0</span></button>
+    <button data-tab="pending" class="active" title="平台目录里的新技能或重复副本，尚未纳入共享仓；可查看详情、采纳进 canonical 或忽略">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
+    <button data-tab="problems" title="需要处理的异常：内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异或一键修复">问题与分叉<span class="tab-n" id="cnt-problems">0</span></button>
+    <button data-tab="managed" title="已通过软链下发到各平台的技能，以及被忽略、不再参与同步的技能">已纳管 / 忽略<span class="tab-n" id="cnt-managed">0</span></button>
+    <button data-tab="library" title="共享仓 canonical 的技能本体（唯一事实源），可查看 SKILL.md">技能库<span class="tab-n" id="cnt-library">0</span></button>
   </div>
+  <div class="tabs-hint" id="tabsHint"></div>
   <div class="panel" id="panel"></div>
 
   <div class="foot-note">127.0.0.1 ONLY · 唯一事实源 CANONICAL · 写操作经 AUDIT.LOGL 留痕 · 网页只读不编辑</div>
@@ -799,13 +806,25 @@ window.applyForce = (p, n) => runApply(true, true, true, p, n);
 $("#applyDry").onclick = () => runApply(false, true, false);
 $("#applyWriteLink").onclick = () => runApply(true, true, false);
 $("#refreshBtn").onclick = refresh;
+const TAB_HINTS = {
+  pending: "待采纳：平台目录里的新技能或重复副本，尚未纳入共享仓。可先「查看」了解用途（英文可译为中文），再决定采纳进 canonical 或忽略。",
+  problems: "问题与分叉：需要处理的异常——平台副本与共享仓内容分叉、软链损坏、平台缺目标、外来软链等，可查看差异后裁决或一键修复。",
+  managed: "已纳管 / 忽略：已通过软链下发到各平台的技能（改动会同步两端），以及被忽略、不再参与同步的技能。",
+  library: "技能库：共享仓 canonical 中的技能本体，是唯一事实源；各平台目录里都只是它的软链或副本。"
+};
+function updateTabsHint() {
+  const active = document.querySelector("#tabs button.active");
+  $("#tabsHint").textContent = TAB_HINTS[active?.dataset.tab] || "";
+}
 $("#tabs").addEventListener("click", e => {
   if (e.target.dataset.tab) {
     document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
     e.target.classList.add("active");
+    updateTabsHint();
     render();
   }
 });
+updateTabsHint();
 
 refresh().catch(e => toast("初始扫描失败：" + e.message, "err"));
 </script>
