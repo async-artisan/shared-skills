@@ -42,6 +42,9 @@ jobs:
                               continue
                           if root in internal:
                               continue
+                          # argostranslate 是可选依赖，webapp.py 在 try/except 里安全降级
+                          if root == "argostranslate" and f.name == "webapp.py":
+                              continue
                           bad.append((f.name, a.name))
                   elif isinstance(node, ast.ImportFrom) and node.level == 0:
                       if not node.module:
