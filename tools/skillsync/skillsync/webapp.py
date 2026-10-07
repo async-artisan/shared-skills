@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import difflib
 import hashlib
 import io
@@ -16,6 +17,7 @@ import json
 import re
 import threading
 from dataclasses import asdict
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
@@ -431,6 +433,35 @@ def _do_ignore(body: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "ignored": sorted(ignored)}
 
 
+def _do_archive(body: dict[str, Any]) -> dict[str, Any]:
+    """归档/取消归档：在 catalog 技能条目上写 archived 标记（退役标记，不再催办其任何异常）。"""
+    from .store import load_catalog, save_catalog
+
+    slug = str(body.get("slug") or "").strip()
+    if not slug:
+        raise ApiError("slug 必填")
+    archived = body.get("archived")
+    if not isinstance(archived, bool):
+        raise ApiError("archived 必须为布尔值")
+    catalog = load_catalog()
+    entry = (catalog.get("skills", {}) or {}).get(slug)
+    if entry is None:
+        raise ApiError(f"catalog 未登记该技能：{slug}", 404)
+    prev = copy.deepcopy(entry)
+    tx = undo_mod.Tx("archive", slug)
+    tx.catalog_set(slug, copy.deepcopy(prev))  # 撤销 = 整条恢复为操作前条目
+    if archived:
+        entry["archived"] = True
+        entry["archived_at"] = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    else:
+        entry.pop("archived", None)
+        entry.pop("archived_at", None)
+    save_catalog(catalog)
+    audit("archive", slug=slug, archived=archived, via="web", undo=tx.id)
+    tx.commit(f"{'归档' if archived else '取消归档'} {slug}")
+    return {"ok": True, "slug": slug, "archived": archived}
+
+
 _IMPORT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 
@@ -596,6 +627,10 @@ class Handler(BaseHTTPRequestHandler):
                     result["summary"].get(k, 0) for k in PROBLEM_STATUSES)
                 result["descriptions"] = _canonical_descriptions()
                 result["platform_descriptions"] = _platform_descriptions()
+                from .store import load_catalog
+                result["archived"] = sorted(
+                    slug for slug, m in load_catalog().get("skills", {}).items()
+                    if m.get("archived"))
                 self._send_json(result)
                 return
             if parsed.path == "/api/diff":
@@ -648,6 +683,7 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/resolve": _do_resolve,
                 "/api/apply": _do_apply,
                 "/api/ignore": _do_ignore,
+                "/api/archive": _do_archive,
                 "/api/translate": _do_translate,
                 "/api/import": _do_import_preview,
                 "/api/import/confirm": _do_import_confirm,

@@ -332,6 +332,7 @@
   .st-synced-copy { color: var(--blue); background: var(--blue-soft); border-color: var(--blue-line); }
   .st-managed-ok { color: var(--green); background: var(--green-soft); border-color: var(--green-line); }
   .st-ignored { color: var(--faint); }
+  .st-archived { color: var(--faint); border-style: dashed; }
 
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
   .row-actions button { padding: 4px 11px; font-size: 11.5px; }
@@ -540,6 +541,8 @@ const STATUS_TEXT = {
   "missing-canonical": "缺 canonical", "bad-frontmatter": "元数据异常", "ignored": "已忽略"
 };
 let DATA = null;
+// 归档集合：catalog.archived 的技能（其异常/待采纳行不催办，可在技能库恢复）
+const ARCH = () => new Set((DATA && DATA.archived) || []);
 let pageSize = 15;
 const pagePos = { pending: 1, problems: 1, managed: 1, library: 1, history: 1 };
 
@@ -718,11 +721,14 @@ function render() {
   if (tab === "history") { renderHistoryTab(); return; }
   const g = groupByStatus();
   renderCards();
-  const pendingRows = [
-    ...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])
-  ];
-  const problemRows = [];
-  for (const st of PROBLEM_STATUSES) problemRows.push(...(g[st] || []));
+  // 归档语义：已归档技能的待采纳/问题行不再显示（计入 hiddenN，可在技能库恢复）
+  const pendAll = [...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])];
+  const probAll = [];
+  for (const st of PROBLEM_STATUSES) probAll.push(...(g[st] || []));
+  const pendingRows = pendAll.filter(f => !f.archived);
+  const problemRows = probAll.filter(f => !f.archived);
+  const pendHidden = pendAll.length - pendingRows.length;
+  const probHidden = probAll.length - problemRows.length;
   const managedRows = [...(g["managed-ok"] || []), ...(g["ignored"] || [])];
   const allLib = libraryRows();
   const pend = pendingRows.filter(matchRow);
@@ -747,8 +753,8 @@ function render() {
       <div class="es">调整关键词或平台筛选，或 <button onclick="clearFilters()">清除筛选</button></div></div>`;
     return;
   }
-  if (tab === "pending") { renderPending(pend); pretranslateDescs(); }
-  else if (tab === "problems") renderProblems(prob);
+  if (tab === "pending") { renderPending(pend, pendHidden); pretranslateDescs(); }
+  else if (tab === "problems") renderProblems(prob, probHidden);
   else if (tab === "managed") renderManaged(man);
   else renderLibrary(lib);
 }
@@ -814,10 +820,15 @@ async function pretranslateDescs() {
   if (curTab() === "pending") render();
 }
 
-function renderPending(rows) {
-  if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "没有待采纳的技能", "NO PENDING SIGNALS"); return; }
+function renderPending(rows, hiddenN = 0) {
+  const hint = hiddenN > 0
+    ? `<div class="meta-line">另有 ${hiddenN} 条已归档技能的记录未显示（可在技能库恢复）</div>` : "";
+  if (!rows.length) {
+    $("#panel").innerHTML = hint || emptyBlock("———", "没有待采纳的技能", "NO PENDING SIGNALS");
+    return;
+  }
   const pg = pageSlice(rows, "pending");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:230px">操作 / ACTIONS</th>
     </tr></thead><tbody>${pg.items.map(f => {
       const desc = rowDesc(f);
@@ -834,10 +845,12 @@ function renderPending(rows) {
       </div></td></tr>`;}).join("")}</tbody></table></div>${pagerBar("pending", pg)}`;
 }
 
-function renderProblems(rows) {
-  if (!rows.length) { $("#panel").innerHTML = emptyBlock("✓", "没有需要处理的问题", "ALL SYSTEMS NOMINAL"); return; }
+function renderProblems(rows, hiddenN = 0) {
+  const hint = hiddenN > 0
+    ? `<div class="meta-line">另有 ${hiddenN} 条已归档技能的异常未显示（可在技能库恢复）</div>` : "";
+  if (!rows.length) { $("#panel").innerHTML = hint || emptyBlock("✓", "没有需要处理的问题", "ALL SYSTEMS NOMINAL"); return; }
   const pg = pageSlice(rows, "problems");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:120px">状态 / STATUS</th><th style="width:260px">操作 / ACTIONS</th>
     </tr></thead><tbody>${pg.items.map(f => `<tr>
       <td>${f.platform === "-" ? "" : badge(f.platform)}</td>
@@ -872,7 +885,7 @@ function renderManaged(rows) {
       <td><strong>${esc(f.name)}</strong> <span class="st st-ignored">已忽略</span>
       <div class="row-actions" style="margin-top:5px"><button onclick="unignoreOne('${f.platform}', ${jstr(f.name)})">取消忽略</button></div></td>
       <td></td></tr>` : `<tr>
-      <td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>
+      <td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>${f.archived ? ` <span class="st st-archived">已归档</span>` : ""}
       ${(() => { const d = rowDesc(f); return d ? `<div class="detail clamp2" title="${esc(d)}">${esc(d)}</div>` : ""; })()}
       <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody></table></div>${pagerBar("managed", pg)}`;
 }
@@ -882,7 +895,8 @@ function libraryRows() {
   const okFinds = DATA.findings.filter(f => f.status === "managed-ok");
   const platsOf = slug => [...new Set(okFinds.filter(f => f.name === slug).map(f => f.platform))];
   return [...new Set(okFinds.map(f => f.name))].sort().map(slug =>
-    ({ slug, plats: platsOf(slug), desc: (DATA.descriptions || {})[slug] || "" }));
+    ({ slug, plats: platsOf(slug), desc: (DATA.descriptions || {})[slug] || "",
+       archived: ARCH().has(slug) }));
 }
 
 // 技能库行匹配：平台筛选按"已下发平台"判断
@@ -897,15 +911,17 @@ function renderLibrary(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
   const pg = pageSlice(rows, "library");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
-    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ")}</td>
-      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
+    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ")}</td>
+      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button>${r.archived
+        ? `<button onclick="archiveOne(${jstr(r.slug)}, false)">取消归档</button>`
+        : `<button onclick="archiveOne(${jstr(r.slug)}, true)">归档</button>`}</div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
 }
 
 // ---- 操作历史（registry/audit.logl 的结构化留痕，最新在前） ----
 let HISTORY = null;
-const ACTION_TEXT = { adopt: "采纳", resolve: "裁决", apply: "下发", ignore: "忽略" };
+const ACTION_TEXT = { adopt: "采纳", resolve: "裁决", apply: "下发", ignore: "忽略", archive: "归档" };
 const ACTION_CLS = { adopt: "st-unregistered", resolve: "st-synced-copy",
-                     apply: "st-managed-ok", ignore: "st-ignored" };
+                     apply: "st-managed-ok", ignore: "st-ignored", archive: "st-archived" };
 
 async function ensureHistory() {
   if (HISTORY) return HISTORY;
@@ -1300,6 +1316,19 @@ window.ignoreOne = async function (platform, name) {
 window.unignoreOne = async function (platform, name) {
   try { await api("/api/ignore", { method: "POST", body: { platform, name, remove: true } });
     toast("已取消忽略", "ok"); await refresh();
+  } catch (e) { toast(e.message, "err"); }
+};
+
+// 归档：catalog 级「退役」标记（区别于 ignore 的单条豁免），该技能所有异常不再催办
+window.archiveOne = async function (slug, archived) {
+  if (!confirm(archived
+    ? `确认归档【${slug}】？\n归档后该技能的所有异常与待采纳提示都不再催办（可随时在技能库恢复）。`
+    : `确认取消归档【${slug}】？其异常将恢复显示与催办。`)) return;
+  try {
+    await api("/api/archive", { method: "POST", body: { slug, archived } });
+    toast(archived ? `已归档 ${slug}（异常不再催办）` : `已取消归档 ${slug}`, "ok");
+    HISTORY = null;
+    await refresh();
   } catch (e) { toast(e.message, "err"); }
 };
 

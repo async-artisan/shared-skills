@@ -42,6 +42,7 @@ class Finding:
     status: str
     detail: str = ""
     path: str = ""
+    archived: bool = False  # catalog 归档标记：该技能的异常降级为不催办
 
 
 def _canonical_index() -> tuple[dict[str, str], dict[str, list[str]]]:
@@ -121,13 +122,21 @@ def scan_all() -> dict[str, Any]:
                 Finding(platform="-", name=slug, status="bad-frontmatter", detail=issue)
             )
 
-    summary = _summarize(findings, len(canonical_by_name), builtin_counts)
+    # 归档语义：catalog 标记 archived 的技能，其全部异常/建议降级为「不催办」。
+    # findings 仍全量返回（带 archived 标志），summary 只按未归档口径统计，
+    # 这样卡片「需处理问题」「可采纳」自动排除已归档技能。
+    for f in findings:
+        if (catalog_skills.get(f.name) or {}).get("archived"):
+            f.archived = True
+    active = [f for f in findings if not f.archived]
+    summary = _summarize(active, len(canonical_by_name), builtin_counts)
     return {
         "repo_root": str(SKILLS_DIR.parent),
         "canonical_count": len(canonical_by_name),
         "builtin_counts": builtin_counts,
         "loose_files": loose_files,
         "findings": [asdict(f) for f in findings],
+        "archived_n": len(findings) - len(active),
         "summary": summary,
     }
 
@@ -215,7 +224,8 @@ def format_text(result: dict[str, Any]) -> str:  # noqa: C901 - 报告排版
             continue
         lines.append(f"## {STATUS_LABELS[status]}（{len(group)}）")
         for f in group:
-            lines.append(f"  [{f.platform}] {f.name}" + (f"  — {f.detail}" if f.detail else ""))
+            mark = "[已归档] " if f.archived else ""
+            lines.append(f"  {mark}[{f.platform}] {f.name}" + (f"  — {f.detail}" if f.detail else ""))
         lines.append("")
 
     loose = result.get("loose_files", {})
@@ -230,4 +240,7 @@ def format_text(result: dict[str, Any]) -> str:  # noqa: C901 - 报告排版
     adoptable_n = sum(s.get(k, 0) for k in ADOPTABLE_STATUSES)
     lines.append(f"汇总：{problem_n} 个需处理问题，{adoptable_n} 个可采纳/可转软链，"
                  f"{s.get('managed-ok', 0)} 个已纳管。")
+    archived_n = result.get("archived_n", 0)
+    if archived_n:
+        lines.append(f"另有 {archived_n} 条已归档技能的异常（不催办）。")
     return "\n".join(lines)
