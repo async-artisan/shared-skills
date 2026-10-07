@@ -27,6 +27,7 @@ from . import apply as apply_mod
 from . import resolve as resolve_mod
 from .core import (
     AUDIT_PATH,
+    IGNORE_DIRS,
     PLATFORMS,
     SKILL_MD,
     SKILLS_DIR,
@@ -129,6 +130,10 @@ _TRANS_LOCK = threading.Lock()
 _TRANSLATION_CACHE: dict[str, Any] = {}
 _RESULT_CACHE: dict[str, str] = {}
 _RESULT_CACHE_MAX = 64
+# 译文磁盘缓存：重启不丢；lazy 加载 + 原子写
+_DISK_CACHE_PATH = AUDIT_PATH.parent / "translate-cache.json"
+_DISK_CACHE: dict[str, str] | None = None
+_DISK_CACHE_MAX = 512
 _TOKEN_RE = re.compile(r"`[^`\n]+`|https?://[^\s)]+|\*\*|__")
 # Argos 模型在超短行上偶尔吐出字幕样式标签（如 {\fn方正粗倩简体\fs12...}）
 _ASS_TAG_RE = re.compile(r"\{\\[^{}]*\}")
@@ -208,6 +213,31 @@ def _translate_markdown(text: str) -> str:
     return "\n".join(out_lines)
 
 
+def _disk_cache() -> dict[str, str]:
+    global _DISK_CACHE
+    if _DISK_CACHE is None:
+        try:
+            loaded = json.loads(_DISK_CACHE_PATH.read_text(encoding="utf-8"))
+            _DISK_CACHE = loaded if isinstance(loaded, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            _DISK_CACHE = {}
+    return _DISK_CACHE
+
+
+def _disk_cache_save() -> None:
+    if _DISK_CACHE is None:
+        return
+    while len(_DISK_CACHE) > _DISK_CACHE_MAX:
+        oldest = next(iter(_DISK_CACHE))
+        _DISK_CACHE.pop(oldest, None)
+    tmp = _DISK_CACHE_PATH.with_suffix(".json.tmp")
+    try:
+        tmp.write_text(json.dumps(_DISK_CACHE, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_DISK_CACHE_PATH)
+    except OSError:
+        pass
+
+
 def _do_translate(body: dict[str, Any]) -> dict[str, Any]:
     text = body.get("text")
     if not isinstance(text, str) or not text.strip():
@@ -220,6 +250,11 @@ def _do_translate(body: dict[str, Any]) -> dict[str, Any]:
     cache_key = hashlib.sha1(text.encode("utf-8")).hexdigest()
     with _TRANS_LOCK:
         cached = _RESULT_CACHE.get(cache_key)
+    if cached is None:
+        cached = _disk_cache().get(cache_key)
+        if cached is not None:
+            with _TRANS_LOCK:
+                _RESULT_CACHE[cache_key] = cached
     if cached is not None:
         return {"ok": True, "skipped": False,
                 "engine": "argos-translate · 离线 en→zh（缓存）", "translated": cached}
@@ -228,8 +263,39 @@ def _do_translate(body: dict[str, Any]) -> dict[str, Any]:
         if len(_RESULT_CACHE) >= _RESULT_CACHE_MAX:
             _RESULT_CACHE.clear()
         _RESULT_CACHE[cache_key] = translated
+        _disk_cache()[cache_key] = translated
+        _disk_cache_save()
     return {"ok": True, "skipped": False,
             "engine": "argos-translate · 离线 en→zh", "translated": translated}
+
+
+def _scan_signature() -> str:
+    """技能目录变化签名：canonical 与各平台目录两层 mtime 的哈希。
+
+    能捕获新增/删除/改名与一级子项改动；内容深层编辑交给 doctor 对账。
+    """
+    parts: list[str] = []
+
+    def stat_entry(p: Path, depth: int) -> None:
+        try:
+            parts.append(f"{p}:{int(p.stat().st_mtime * 1000)}")
+        except OSError:
+            return
+        if depth <= 0:
+            return
+        try:
+            children = sorted(p.iterdir())
+        except OSError:
+            return
+        for c in children:
+            if c.name in IGNORE_DIRS or c.name.startswith("."):
+                continue
+            stat_entry(c, depth - 1)
+
+    stat_entry(SKILLS_DIR, 1)
+    for key in sorted(PLATFORMS):
+        stat_entry(PLATFORMS[key].skills_dir, 1)
+    return hashlib.sha1("\n".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
 # ---- 动作处理（均复用 CLI 同一批函数） ----
@@ -423,6 +489,9 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError:
                     limit = 300
                 self._send_json({"ok": True, "entries": _read_audit(limit)})
+                return
+            if parsed.path == "/api/poll":
+                self._send_json({"ok": True, "sig": _scan_signature()})
                 return
             self._send_json({"ok": False, "error": "not found"}, 404)
         except ApiError as exc:

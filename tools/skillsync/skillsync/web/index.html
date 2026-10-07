@@ -557,7 +557,23 @@ async function refresh() {
   HISTORY = null; // 操作可能已写入新审计记录，缓存失效
   render();
   $("#lastScan").textContent = "SCAN " + new Date().toLocaleTimeString();
+  try { watchSig = (await api("/api/poll")).sig; } catch (_) {}
 }
+
+// ---- watch 自动扫描：轮询目录签名，变化即重扫（只读，不自动改任何东西） ----
+let watchSig = null;
+async function watchTick() {
+  try {
+    const d = await api("/api/poll");
+    if (watchSig !== null && d.sig !== watchSig) {
+      await refresh(); // refresh() 末尾会更新 watchSig 基线
+      toast("检测到技能目录变化，已自动重新扫描", "ok");
+      return;
+    }
+    watchSig = d.sig;
+  } catch (_) { /* 服务短暂不可用，下轮再试 */ }
+}
+setInterval(watchTick, 5000);
 
 function groupByStatus() {
   const g = {};
