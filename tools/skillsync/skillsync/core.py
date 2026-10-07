@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,7 @@ def frontmatter_issue(skill_dir: Path) -> str:
     """
     md = skill_dir / SKILL_MD
     try:
-        text = md.read_text(encoding="utf-8", errors="replace")
+        text = read_text_cached(md)
     except OSError:
         return "SKILL.md 无法读取"
     lines = text.splitlines()
@@ -159,6 +160,29 @@ class SkillEntry:
             return False
 
 
+# ---- mtime/size 增量缓存（进程内存态，线程安全） ----
+# 目录哈希只在运行内对账比较、从不落盘，因此组合方式可自由演进。
+_CACHE_LOCK = threading.Lock()
+_FILE_DIGEST_CACHE: dict[Path, tuple[int, int, str]] = {}  # 真实路径 -> (mtime_ns, size, sha256)
+_TEXT_CACHE: dict[Path, tuple[int, int, str]] = {}         # 路径 -> (mtime_ns, size, 文本)
+_CACHE_MAX = 8192
+
+
+def read_text_cached(path: Path) -> str:
+    """按 mtime/size 增量缓存的文本读取（errors=replace，SKILL.md 热路径专用）。"""
+    st = path.stat()
+    with _CACHE_LOCK:
+        hit = _TEXT_CACHE.get(path)
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    text = path.read_text(encoding="utf-8", errors="replace")
+    with _CACHE_LOCK:
+        if len(_TEXT_CACHE) >= _CACHE_MAX:
+            _TEXT_CACHE.clear()
+        _TEXT_CACHE[path] = (st.st_mtime_ns, st.st_size, text)
+    return text
+
+
 def iter_skill_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
@@ -171,16 +195,38 @@ def iter_skill_files(root: Path) -> list[Path]:
 
 
 def hash_skill(root: Path) -> str:
-    """对技能目录做确定性 sha256（相对路径 + 文件内容）。"""
+    """对技能目录做确定性 sha256（相对路径 + 各文件摘要）。
+
+    文件级摘要带 mtime/size 增量缓存，且以 resolve 后的真实路径为键：
+    平台软链与 canonical 同源文件只读一次，未变文件跳过重读。
+    文件列表每次仍全量遍历（仅 stat），新增/删除文件自然改变目录哈希。
+    root 只 resolve 一次，逐文件复用 base/rel 拼出真实路径，避免
+    大规模扫描时逐文件 realpath 的系统调用开销。
+    """
     h = hashlib.sha256()
     base = root.resolve()
     for f in iter_skill_files(root):
-        rel = f.resolve().relative_to(base).as_posix()
-        h.update(rel.encode("utf-8"))
+        rel = f.relative_to(root)
+        h.update(rel.as_posix().encode("utf-8"))
         h.update(b"\0")
-        h.update(f.read_bytes())
+        h.update(_file_digest(base / rel).encode("ascii"))
         h.update(b"\0")
     return h.hexdigest()
+
+
+def _file_digest(real: Path) -> str:
+    """单文件 sha256 摘要（十六进制）；mtime/size 未变时直接命中缓存。"""
+    st = real.stat()
+    with _CACHE_LOCK:
+        hit = _FILE_DIGEST_CACHE.get(real)
+    if hit is not None and hit[0] == st.st_mtime_ns and hit[1] == st.st_size:
+        return hit[2]
+    digest = hashlib.sha256(real.read_bytes()).hexdigest()
+    with _CACHE_LOCK:
+        if len(_FILE_DIGEST_CACHE) >= _CACHE_MAX:
+            _FILE_DIGEST_CACHE.clear()
+        _FILE_DIGEST_CACHE[real] = (st.st_mtime_ns, st.st_size, digest)
+    return digest
 
 
 def parse_frontmatter(skill_dir: Path) -> tuple[dict[str, Any] | None, str | None]:

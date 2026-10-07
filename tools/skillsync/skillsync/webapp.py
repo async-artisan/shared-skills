@@ -35,6 +35,7 @@ from .core import (
     SKILLS_DIR,
     extract_description,
     hash_skill,
+    read_text_cached,
     scan_platform,
 )
 from .doctor import PROBLEM_STATUSES, scan_all
@@ -442,8 +443,7 @@ def _canonical_descriptions() -> dict[str, str]:
         if not md.is_file():
             continue
         try:
-            out[child.name] = extract_description(
-                md.read_text(encoding="utf-8", errors="replace"))
+            out[child.name] = extract_description(read_text_cached(md))
         except OSError:
             out[child.name] = ""
     return out
@@ -459,8 +459,7 @@ def _platform_descriptions() -> dict[str, str]:
             if not md.is_file():
                 continue
             try:
-                desc = extract_description(
-                    md.read_text(encoding="utf-8", errors="replace"))
+                desc = extract_description(read_text_cached(md))
             except OSError:
                 continue
             if desc:
