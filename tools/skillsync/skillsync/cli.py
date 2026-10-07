@@ -19,6 +19,7 @@ from typing import Any
 
 from . import __version__, adopt as adopt_mod
 from . import apply as apply_mod
+from . import bootstrap as bootstrap_mod
 from . import doctor as doctor_mod
 from . import gitsync as gitsync_mod
 from . import resolve as resolve_mod
@@ -32,6 +33,22 @@ from .store import audit, load_state, save_state
 
 def _print_json(obj: Any) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    result = bootstrap_mod.run(
+        dry_run=args.dry_run, skip_apply=args.no_apply)
+    if args.json:
+        _print_json({
+            "applied": result.applied_n,
+            "refused": result.refused_n,
+            "adoptable": len(result.adoptable),
+            "problem": result.problem_n,
+            "actions": [asdict(a) for a in result.apply_actions],
+        })
+        return 1 if (result.refused_n or result.problem_n) else 0
+    print(bootstrap_mod.format_text(result))
+    return 1 if (result.refused_n or result.problem_n) else 0
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -248,6 +265,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="skillsync", description="跨平台 Agent Skill 单仓同步工具")
     parser.add_argument("--version", action="version", version=f"skillsync {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser(
+        "bootstrap", help="新机器一键上手：扫描 + 下发已纳管软链 + 报告待采纳")
+    p.add_argument("--dry-run", action="store_true", help="只预演，不真正创建软链")
+    p.add_argument("--no-apply", action="store_true", help="跳过软链下发，只扫描并报告")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_bootstrap)
 
     p = sub.add_parser("doctor", help="只读对账")
     p.add_argument("--json", action="store_true")

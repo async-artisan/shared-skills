@@ -82,6 +82,16 @@ platforms:
 
 ## 使用示例
 
+### 新机器一键上手
+
+```bash
+bin/skillsync bootstrap            # 扫描 + 下发已纳管软链 + 报告待采纳
+bin/skillsync bootstrap --dry-run  # 预演，不真正创建软链
+bin/skillsync bootstrap --no-apply # 只扫描报告，不下发软链
+```
+
+bootstrap 把新机器最短路径串成一步：把 `catalog` 里已纳管的技能软链下发到本机平台目录，并汇总待采纳技能与问题信号。采纳（把平台散装技能收进共享仓）仍需 `serve` 控制台或 `migrate` 人工确认来源。
+
 ### 只读对账
 
 ```bash
@@ -159,6 +169,7 @@ tools/skillsync/   CLI 源码
     store.py       catalog/state 读写 + audit
     undo.py        Tx 逆操作收集器（rm_tree/catalog_set/state_ignored 等）
     doctor.py      只读对账：Finding/scan_all/format_text
+    bootstrap.py   新机器上手：扫描→下发软链→报告待采纳
     adopt.py       采纳单个技能
     apply.py       软链下发
     resolve.py     分叉裁决
