@@ -335,6 +335,7 @@
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
   .row-actions button { padding: 4px 11px; font-size: 11.5px; }
   td:has(> .row-actions) { vertical-align: middle; }
+  td.cell-badges { vertical-align: middle; }
 
   .empty { padding: 70px 20px; text-align: center; color: var(--faint); }
   .empty .glyph { font-family: var(--disp); font-size: 26px; color: var(--line-strong); letter-spacing: .2em; margin-bottom: 12px; }
@@ -830,7 +831,7 @@ function renderLibrary(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
   const pg = pageSlice(rows, "library");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
-    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td>${r.plats.map(badge).join(" ")}</td>
+    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ")}</td>
       <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看 SKILL.md</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
 }
 
