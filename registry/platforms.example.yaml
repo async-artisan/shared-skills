@@ -1,0 +1,26 @@
+# 自定义平台表示例。
+#
+# 用法：复制为 registry/platforms.yaml（仓库级，可随 fork 提交共享），
+# 或放到 ~/.skillsync/platforms.yaml（仅本机生效，优先级更高）。
+# 改完后重启 skillsync serve / CLI 生效。
+#
+# 一旦配置文件存在，即「整体替换」内置四平台（codex/claude/workbuddy/trae），
+# 不做合并——只想新增一个时，请把仍需使用的内置平台一并写回。
+#
+# 约束：
+# - key 只能是小写字母/数字/短横（如 qwen-office），会进入 catalog、命令行与页面徽章
+# - skills_dir 支持 ~、$VAR/${VAR}、Windows %VAR%，相对路径锚定仓库根
+# - builtin_dirnames 可选：平台目录下需整体跳过的内置子目录（如 .system）
+# - 平台机制须为「本地目录 + SKILL.md + 接受软链」；云端市场/打包上传类不适用
+
+version: 1
+
+platforms:
+  qwen:
+    label: 千问办公
+    skills_dir: ~/.qwen-office/skills
+
+  doubao:
+    label: 豆包工作
+    skills_dir: ~/.doubao-work/skills
+    builtin_dirnames: [.system]

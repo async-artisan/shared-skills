@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from . import yamllite
+from .platforms import Platform, resolve_platforms
 
 # 仓库根：tools/skillsync/skillsync/core.py 向上四级
 _PKG_REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -96,43 +97,12 @@ def frontmatter_issue(skill_dir: Path) -> str:
     return ""
 
 
-@dataclass(frozen=True)
-class Platform:
-    key: str
-    label: str
-    skills_dir: Path
-    # 相对于 skills_dir 需要整体跳过的内置目录名
-    builtin_dirnames: frozenset[str] = frozenset()
-
-
-def _platforms() -> dict[str, Platform]:
-    home = Path.home()
-    return {
-        "codex": Platform(
-            key="codex",
-            label="Codex",
-            skills_dir=home / ".codex" / "skills",
-            builtin_dirnames=frozenset({".system"}),
-        ),
-        "claude": Platform(
-            key="claude",
-            label="Claude",
-            skills_dir=home / ".claude" / "skills",
-        ),
-        "workbuddy": Platform(
-            key="workbuddy",
-            label="WorkBuddy",
-            skills_dir=home / ".workbuddy" / "skills",
-        ),
-        "trae": Platform(
-            key="trae",
-            label="TRAE",
-            skills_dir=home / ".trae-cn" / "skills",
-        ),
-    }
-
-
-PLATFORMS = _platforms()
+# 生效平台注册表：registry/platforms.yaml / 用户级配置 / 内置默认。
+# 进程启动时一次性快照；修改配置后重启 serve/CLI 生效。解析见 platforms.py。
+_PLATFORMS_CFG = resolve_platforms(REGISTRY_DIR)
+PLATFORMS = dict(_PLATFORMS_CFG.platforms)
+# default / repo / user / env，供控制台展示当前平台清单来源
+PLATFORMS_SOURCE = _PLATFORMS_CFG.source
 
 
 @dataclass

@@ -49,6 +49,37 @@ ln -s "$(pwd)/bin/skillsync" /usr/local/bin/skillsync
 
 `SKILLSYNC_HOME` 环境变量可重定向仓库根（用于测试或多机切换）。
 
+## 自定义平台
+
+不用 codex / workbuddy，只想同步千问办公、豆包工作等平台？写一份平台清单即可，**无需改代码**：
+
+```yaml
+# registry/platforms.yaml（复制 registry/platforms.example.yaml）
+version: 1
+platforms:
+  qwen:
+    label: 千问办公
+    skills_dir: ~/.qwen-office/skills
+  doubao:
+    label: 豆包工作
+    skills_dir: ~/.doubao-work/skills
+    builtin_dirnames: [.system]   # 可选：需跳过的平台内置子目录
+```
+
+**查找顺序**（前者存在即整体生效，不做跨文件合并，改完重启 `serve` / CLI）：
+
+1. 环境变量 `SKILLSYNC_PLATFORMS` 指向的文件
+2. `~/.skillsync/platforms.yaml`（个人级，不经过仓库）
+3. `<仓库>/registry/platforms.yaml`（仓库级，可随 fork 提交给团队共享）
+4. 内置默认：codex / claude / workbuddy / trae（无配置时零变化）
+
+规则与边界：
+
+- `key` 只能用小写字母/数字/短横（如 `qwen-office`），会进入 catalog、命令行与页面徽章；控制台筛选器和徽章配色按配置自动生成
+- `skills_dir` 支持 `~`、`$VAR` / `${VAR}`、Windows `%VAR%`；相对路径锚定仓库根
+- 配置是**整体替换**：只想新增一个平台时，把仍在使用的内置平台也写回去
+- 仅适用于「本地目录 + `SKILL.md`（YAML frontmatter）+ 接受软链」的平台；云端市场或打包上传类通道需要另行扩展下发方式，欢迎提 issue 讨论
+
 ## 使用示例
 
 ### 只读对账

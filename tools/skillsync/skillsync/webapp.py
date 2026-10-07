@@ -33,6 +33,7 @@ from .core import (
     AUDIT_PATH,
     IGNORE_DIRS,
     PLATFORMS,
+    PLATFORMS_SOURCE,
     SKILL_MD,
     SKILLS_DIR,
     _file_digest,
@@ -55,6 +56,17 @@ class ApiError(Exception):
     def __init__(self, message: str, status: int = 400):
         super().__init__(message)
         self.status = status
+
+
+def _platforms_payload() -> dict[str, Any]:
+    """当前进程生效的平台清单（启动快照，改配置需重启 serve）。"""
+    return {
+        "platforms": [
+            {"key": p.key, "label": p.label}
+            for p in PLATFORMS.values()
+        ],
+        "platforms_source": PLATFORMS_SOURCE,
+    }
 
 
 def _diff_skill(platform_key: str, name: str) -> dict[str, Any]:
@@ -618,9 +630,13 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path in ("/", "/index.html"):
                 self._send_html(INDEX_HTML)
                 return
+            if parsed.path == "/api/platforms":
+                self._send_json({"ok": True, **_platforms_payload()})
+                return
             if parsed.path == "/api/scan":
                 state = load_state()
                 result = scan_all()
+                result.update(_platforms_payload())
                 result["state"] = {"ignored": state.get("ignored", []),
                                    "last_apply": state.get("last_apply", {})}
                 result["problem_total"] = sum(

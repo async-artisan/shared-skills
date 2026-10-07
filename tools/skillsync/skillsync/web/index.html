@@ -531,7 +531,50 @@
 
 <script>
 "use strict";
-const PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
+// 平台清单：首屏用内置默认，/api/scan 返回后按生效配置覆盖（自定义平台无需改前端）
+const KNOWN_BADGE = new Set(["codex", "claude", "workbuddy", "trae"]);
+let PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
+let PLATFORM_LABELS = {};
+// 自定义平台徽章配色：按配置顺序分配，与四个内置平台色板错开
+const EXTRA_BADGE = [
+  ["#0f766e", "#e6f5f3", "#b2ddd8"], ["#0e6fa8", "#e7f3fb", "#b5d9ee"],
+  ["#4f46a5", "#ececfb", "#c9c6ec"], ["#be4b5e", "#fdeef0", "#f3c6ce"],
+  ["#4d7c0f", "#f1f8e3", "#d3e7a8"], ["#b45309", "#fdf0e3", "#f0cfa3"],
+  ["#475569", "#eef1f5", "#c7d0db"], ["#0d8a8a", "#e4f7f4", "#aedcd4"],
+];
+let BADGE_STYLE = {};
+const PLATFORM_SOURCE_TEXT = {
+  "default": "内置默认（codex / claude / workbuddy / trae）",
+  "repo": "仓库配置 registry/platforms.yaml",
+  "user": "个人配置 ~/.skillsync/platforms.yaml",
+  "env": "环境变量 SKILLSYNC_PLATFORMS",
+};
+
+// 按后端返回的生效平台重建筛选下拉与徽章配色；选中项消失时安全回退到「全部平台」
+function syncPlatforms(list, source) {
+  if (Array.isArray(list) && list.length) {
+    PLATFORMS = list.map(p => p.key);
+    PLATFORM_LABELS = {};
+    for (const p of list) PLATFORM_LABELS[p.key] = p.label || p.key;
+  }
+  BADGE_STYLE = {};
+  let ei = 0;
+  for (const p of PLATFORMS) {
+    if (!KNOWN_BADGE.has(p)) BADGE_STYLE[p] = EXTRA_BADGE[ei++ % EXTRA_BADGE.length];
+  }
+  const sel = $("#platformSel");
+  const prev = sel.value || "all";
+  sel.innerHTML = `<option value="all">全部平台</option>` + PLATFORMS.map(p =>
+    `<option value="${p}">${PLATFORM_LABELS[p] && PLATFORM_LABELS[p] !== p
+      ? esc(PLATFORM_LABELS[p]) + " · " + p : p}</option>`).join("");
+  if (prev === "all" || PLATFORM_LABELS[prev]) {
+    sel.value = prev;
+  } else {
+    sel.value = "all";
+    platformFilter = "all";
+  }
+  sel.title = "平台清单来源：" + (PLATFORM_SOURCE_TEXT[source] || source || "内置默认");
+}
 const PROBLEM_STATUSES = ["fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical", "bad-frontmatter"];
 const PAGE_SIZES = [15, 30, 50];
 const STATUS_TEXT = {
@@ -573,6 +616,7 @@ async function api(path, opts = {}) {
 async function refresh() {
   const d = await api("/api/scan");
   DATA = d;
+  syncPlatforms(d.platforms, d.platforms_source);
   HISTORY = null; // 操作可能已写入新审计记录，缓存失效
   render();
   $("#lastScan").textContent = "SCAN " + new Date().toLocaleTimeString();
@@ -624,7 +668,12 @@ function renderTabCounts(g, counts) {
   $("#cnt-library").textContent = counts.library;
 }
 
-function badge(p) { return `<span class="badge b-${p}">${p}</span>`; }
+function badge(p) {
+  if (KNOWN_BADGE.has(p)) return `<span class="badge b-${p}">${p}</span>`;
+  const c = BADGE_STYLE[p] || EXTRA_BADGE[0];
+  const tip = PLATFORM_LABELS[p] ? ` title="${esc(PLATFORM_LABELS[p])}"` : "";
+  return `<span class="badge"${tip} style="color:${c[0]};background:${c[1]};border-color:${c[2]}">${p}</span>`;
+}
 function stCell(f) { return `<span class="st st-${f.status}">${STATUS_TEXT[f.status] || f.status}</span>`; }
 function emptyBlock(glyph, text, sub) {
   return `<div class="empty"><div class="glyph">${glyph}</div><div class="et">${text}</div><div class="es">${sub}</div></div>`;
