@@ -7,6 +7,7 @@
   apply     按 catalog 把 canonical 软链下发到各平台（默认 dry-run）
   verify    canonical 仓自检
   serve     本机 Web 控制台（下一阶段提供）
+  sync-status / push / pull  多机 git 共享流（只同步 skills/ 与 catalog.yaml 等事实源）
 """
 from __future__ import annotations
 
@@ -19,11 +20,13 @@ from typing import Any
 from . import __version__, adopt as adopt_mod
 from . import apply as apply_mod
 from . import doctor as doctor_mod
+from . import gitsync as gitsync_mod
 from . import resolve as resolve_mod
 from . import verify as verify_mod
 from .adopt import AdoptError
 from .core import PLATFORMS
 from .doctor import ADOPTABLE_STATUSES, scan_all
+from .gitsync import GitError, PreflightError
 from .store import audit, load_state, save_state
 
 
@@ -148,6 +151,85 @@ def cmd_ignore(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sync_status(args: argparse.Namespace) -> int:
+    try:
+        info = gitsync_mod.sync_status(args.remote, do_fetch=not args.offline)
+    except PreflightError as exc:
+        print("[拒绝] " + "；".join(exc.reasons), file=sys.stderr)
+        return 2
+    if args.json:
+        _print_json(info)
+        return 0
+    print(f"仓库：{info['repo']}")
+    print(f"分支：{info['branch']}　远端：{args.remote}"
+          + (f"（{info['remote_url']}）" if info["remote_url"] else "（未配置）"))
+    if info["has_upstream"]:
+        print(f"领先远端 {info['ahead']} / 落后 {info['behind']}"
+              + ("　fetch 失败，数字基于本地缓存" if not info["fetch_ok"] and info["has_remote"] else ""))
+    elif info["has_remote"]:
+        print("尚未建立上游跟踪（首次 push 会自动 -u）")
+    print(f"待提交变更：受跟踪改动 {len(info['dirty'])}，未跟踪新文件 {len(info['untracked'])}"
+          f"，已暂存 {len(info['staged'])}")
+    if info["dirty"][:8]:
+        print("  改动：" + "、".join(info["dirty"][:8]))
+    if info["untracked"][:8]:
+        print("  新增：" + "、".join(info["untracked"][:8]))
+    if info["bak"]:
+        print(f"  ⚠ .bak 回滚副本残留 {len(info['bak'])} 个：" + "、".join(info["bak"][:5]))
+    if info["blocking"]:
+        print("  ⚠ catalog 声明但 skills/ 缺失：" + "、".join(info["blocking"][:5]))
+    if info["warnings"]:
+        print("  · 元数据体检警告：" + "、".join(info["warnings"][:5]))
+    print(f"结论：push {'可行' if info['can_push'] else '暂不可行'}；"
+          f"pull {'可行' if info['can_pull'] else '暂不可行'}")
+    for r in info["reasons"]:
+        print("  - " + r)
+    return 0
+
+
+def cmd_push(args: argparse.Namespace) -> int:
+    try:
+        r = gitsync_mod.push(args.remote, message=args.message)
+    except PreflightError as exc:
+        print("[拒绝] " + "；".join(exc.reasons), file=sys.stderr)
+        return 2
+    except GitError as exc:
+        print(f"[git 错误] {exc}", file=sys.stderr)
+        return 3
+    if r["committed"]:
+        s = r["summary"]
+        print(f"已提交 {r['commit']}：新增 {len(s['added'])}、更新 {len(s['updated'])}、"
+              f"移除 {len(s['deleted'])} 个技能，其他 {len(s['others'])} 项")
+    else:
+        print("无待提交变更，直接推送。")
+    if r["moved_local"]:
+        print("机器本地数据已移出 git 索引（文件保留本机）：" + "、".join(r["moved_local"]))
+    if r["warnings"]:
+        print("提示：canonical 元数据异常（不阻断）：" + "、".join(r["warnings"][:5]))
+    print(f"已推送到 {args.remote}/{r['branch']}。")
+    return 0
+
+
+def cmd_pull(args: argparse.Namespace) -> int:
+    try:
+        r = gitsync_mod.pull(args.remote, rebase=args.rebase)
+    except PreflightError as exc:
+        print("[拒绝] " + "；".join(exc.reasons), file=sys.stderr)
+        return 2
+    except GitError as exc:
+        print(f"[git 错误] {exc}", file=sys.stderr)
+        return 3
+    label = {"up-to-date": "已是最新", "fast-forward": "已快进合并",
+             "rebase": "已变基"}[r["strategy"]]
+    print(f"{label}（拉入 {r['behind_before']} 个提交）。")
+    p = r["post_scan"]
+    print(f"拉取后对账：已纳管软链 {p['managed_ok']}，待处理问题 {p['problem_total']}，"
+          f"可采纳 {p['adoptable']}。")
+    if r["apply_hint"]:
+        print("→ " + r["apply_hint"])
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from .webapp import serve
     httpd, url = serve(host="127.0.0.1", port=args.port, open_browser=not args.no_browser)
@@ -217,6 +299,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=0, help="端口，默认自动选择空闲端口")
     p.add_argument("--no-browser", action="store_true", help="不自动打开浏览器")
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser("sync-status", help="多机同步状态：ahead/behind、待提交变更与预检结论")
+    p.add_argument("--remote", default="origin")
+    p.add_argument("--offline", action="store_true", help="不 fetch，只看本地缓存状态")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_sync_status)
+
+    p = sub.add_parser("push", help="预检后自动提交事实源并推送到远端")
+    p.add_argument("--remote", default="origin")
+    p.add_argument("--message", help="自定义提交说明（默认按变更生成中文说明）")
+    p.set_defaults(func=cmd_push)
+
+    p = sub.add_parser("pull", help="从远端拉取（默认仅快进；分叉需显式 --rebase）")
+    p.add_argument("--remote", default="origin")
+    p.add_argument("--rebase", action="store_true", help="本地与远端分叉时允许变基")
+    p.set_defaults(func=cmd_pull)
     return parser
 
 

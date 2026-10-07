@@ -13,5 +13,10 @@ __pycache__/
 # 本机状态（忽略名单、最近 apply；机器相关，不跨机器同步）
 registry/state.yaml
 
+# 多机 git 共享流：以下均为机器本地留痕/缓存，只同步事实源 skills/ 与 catalog.yaml
+registry/audit.logl
+registry/undo/
+registry/translate-cache.json
+
 # 运行态临时输出
 .claude-plugin-local/
