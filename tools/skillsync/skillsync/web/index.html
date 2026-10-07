@@ -192,6 +192,46 @@
   .toast.err { border-left: 3px solid var(--red); }
   @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   @media (max-width: 720px) { .activitybar { width: 44px; } .tabs button { font-size: 0; } .tabs button::before { font-size: 18px; } }
+
+  /* ---------- 亮色主题 ---------- */
+  body.light {
+    color-scheme: light;
+    --bg: #f5f5f7;
+    --bg-deep: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #fafafa;
+    --raise: #f0f0f0;
+    --ink: #1a1a1a;
+    --ink-soft: #333333;
+    --muted: #6b6b6b;
+    --faint: #a0a0a0;
+    --line: #e5e5e8;
+    --line-strong: #d0d0d5;
+    --accent: #007acc;
+    --accent-soft: #cce4f4;
+    --amber: #b8860b;
+    --amber-fill: #d97706;
+    --amber-soft: rgba(217,119,6,.10);
+    --amber-line: rgba(217,119,6,.35);
+    --green: #166534;
+    --green-soft: rgba(22,101,52,.08);
+    --green-line: rgba(22,101,52,.3);
+    --red: #b91c1c;
+    --red-soft: rgba(185,28,28,.07);
+    --red-line: rgba(185,28,28,.3);
+    --blue: #1d4ed8;
+    --blue-soft: rgba(29,78,216,.08);
+    --blue-line: rgba(29,78,216,.3);
+    --violet: #6d28d9;
+    --violet-soft: rgba(109,40,217,.08);
+    --violet-line: rgba(109,40,217,.3);
+    --pink: #be185d;
+    --pink-soft: rgba(190,24,93,.08);
+    --pink-line: rgba(190,24,93,.3);
+  }
+  body.light ::-webkit-scrollbar-thumb { background: #c8c8cc; }
+  body.light ::-webkit-scrollbar-thumb:hover { background: #a8a8ac; }
+  body.light .toast { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
 </style>
 </head>
 <body>
@@ -208,6 +248,7 @@
   <span class="chip" id="repo"><span class="pulse"></span>加载中…</span>
   <span class="chip" id="pretransChip" hidden></span>
   <span class="scan-time" id="lastScan"></span>
+  <button id="themeBtn" onclick="toggleTheme()" title="切换亮/暗主题">☀</button>
   <button id="refreshBtn">↻ REFRESH</button>
 </header>
 
@@ -277,6 +318,21 @@
 <div id="toasts"></div>
 <script>
 "use strict";
+// 主题：暗色默认，亮色通过 body.light 切换；偏好存 localStorage
+function applyTheme(t) {
+  const isLight = t === "light";
+  document.body.classList.toggle("light", isLight);
+  const btn = document.getElementById("themeBtn");
+  if (btn) btn.textContent = isLight ? "☾" : "☀";
+}
+function toggleTheme() {
+  const cur = document.body.classList.contains("light") ? "light" : "dark";
+  const next = cur === "light" ? "dark" : "light";
+  localStorage.setItem("skillsync-theme", next);
+  applyTheme(next);
+}
+applyTheme(localStorage.getItem("skillsync-theme") || "dark");
+
 // 平台清单：首屏用内置默认，/api/scan 返回后按生效配置覆盖（自定义平台无需改前端）
 const KNOWN_BADGE = new Set(["codex", "claude", "workbuddy", "trae"]);
 let PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
