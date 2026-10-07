@@ -1,0 +1,37 @@
+name: 功能建议
+description: 提议新功能或改进现有行为
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 当前做不到什么 / 做起来很费劲的是什么
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 你希望 skillsync 怎么做；不接受「请帮我实现 X」式的空提案
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案
+      description: 现有命令能否绕过？为什么不接受绕过
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: 兼容性确认
+      options:
+        - label: 我理解 shared-skills 坚持零第三方依赖，本建议不引入 pip 包
+          required: true
+        - label: 我理解 DOM id / window.* 函数 / API 路径不变更，本建议走「新增」而非「改名」
+          required: true

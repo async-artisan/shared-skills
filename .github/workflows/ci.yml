@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Verify zero third-party deps
+        run: |
+          python3 - <<'PY'
+          import ast, pathlib, sys
+          stdlib = set(sys.stdlib_module_names)
+          pkg = pathlib.Path("tools/skillsync/skillsync")
+          # 包内模块（不含子包，本仓无子包）
+          internal = {p.stem for p in pkg.glob("*.py") if p.stem != "__init__"}
+          bad = []
+          for f in pkg.rglob("*.py"):
+              if f.name == "__init__":
+                  continue
+              tree = ast.parse(f.read_text(encoding="utf-8"), filename=str(f))
+              for node in ast.walk(tree):
+                  # 相对导入（from .xxx import …）跳过：level>0 即包内
+                  if isinstance(node, ast.Import):
+                      for a in node.names:
+                          root = a.name.split(".")[0]
+                          if root in stdlib or root == "__future__":
+                              continue
+                          if root in internal:
+                              continue
+                          bad.append((f.name, a.name))
+                  elif isinstance(node, ast.ImportFrom) and node.level == 0:
+                      if not node.module:
+                          continue
+                      root = node.module.split(".")[0]
+                      if root in stdlib or root == "__future__" or root in internal:
+                          continue
+                      # argostranslate 是可选依赖，webapp.py 在 try/except 里安全降级
+                      if root == "argostranslate" and f.name == "webapp.py":
+                          continue
+                      bad.append((f.name, node.module))
+          if bad:
+              raise SystemExit(f"发现第三方依赖：{bad}")
+          print("OK：零第三方依赖（argostranslate 为可选，安全降级）")
+          PY
+
+      - name: Compile all modules
+        run: python3 -m py_compile tools/skillsync/skillsync/*.py
+
+      - name: Run unit tests
+        working-directory: tools/skillsync
+        run: PYTHONPATH=. python3 -m unittest discover -s ../../tests/unit -v
+
+      - name: Lint catalog.yaml
+        run: python3 -c "import sys; sys.path.insert(0, 'tools/skillsync'); from skillsync.store import load_catalog; load_catalog(); print('catalog.yaml OK')"
+
+      - name: Static CLI smoke
+        run: PYTHONPATH=tools/skillsync python3 -m skillsync --help

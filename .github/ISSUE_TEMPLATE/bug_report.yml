@@ -1,0 +1,75 @@
+name: Bug 报告
+description: 报告 shared-skills 或 skillsync 工具的缺陷
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提交 bug！请尽量填全以下信息。安全漏洞请按 [SECURITY.md](../blob/main/SECURITY.md) 私下报告，**不要**用此模板。
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象与预期
+      description: 你做了什么、看到了什么、原本期望看到什么
+    validations:
+      required: true
+
+  - type: input
+    id: command
+    attributes:
+      label: 复现命令
+      description: 完整的 skillsync 子命令与参数
+      placeholder: bin/skillsync apply --write --link
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: 完整输出
+      description: 终端原文（请脱敏 token、路径中的用户名等敏感信息）
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: skillsync 版本
+      description: 运行 `bin/skillsync --version` 的输出
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: 环境信息
+      description: macOS / Linux 发行版 + Python 版本（`python3 --version`）
+      placeholder: macOS 14 / Python 3.10.10
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platforms
+    attributes:
+      label: 涉及平台
+      description: 多选
+      multiple: true
+      options:
+        - codex
+        - claude
+        - workbuddy
+        - trae
+        - canonical（共享仓本身）
+        - 不适用
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息
+      description: 相关 catalog 条目、SKILL.md 片段、最近一次操作（采纳/apply/resolve）
+    validations:
+      required: false
