@@ -212,6 +212,72 @@
   }
   .tabs button.active .tab-n { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
 
+  /* ---------- 搜索筛选工具栏 ---------- */
+  .toolbar {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .toolbar input[type=search] {
+    width: 300px; padding: 7px 12px; font: inherit; font-size: 12.5px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel-2); color: var(--ink); outline: none;
+  }
+  .toolbar input[type=search]:focus { border-color: var(--amber-fill); background: #fff; }
+  .toolbar input[type=search]::placeholder { color: var(--faint); }
+  .toolbar select {
+    padding: 7px 9px; font: inherit; font-size: 12.5px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel-2); color: var(--ink);
+  }
+  #clearFilter { padding: 6px 12px; font-size: 12px; }
+  .filter-info { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: .04em; }
+
+  /* ---------- Markdown 查看器 ---------- */
+  .md-body { margin-top: 10px; }
+  .view-toggle { margin-left: auto; display: inline-flex; gap: 4px; }
+  .view-toggle button { padding: 3px 11px; font-size: 11px; border-radius: 6px; }
+  .view-toggle button.active { background: var(--amber-soft); border-color: var(--amber-line); color: var(--amber-deep); }
+  .md-view { color: var(--ink); font-size: 13px; line-height: 1.68; overflow-wrap: break-word; }
+  .md-view h1, .md-view h2 {
+    font-size: 16.5px; font-weight: 700; margin: 20px 0 9px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .md-view h1:first-child, .md-view h2:first-child { margin-top: 2px; }
+  .md-view h3 { font-size: 14.5px; font-weight: 700; margin: 15px 0 6px; }
+  .md-view h4, .md-view h5, .md-view h6 { font-size: 13px; font-weight: 700; margin: 12px 0 5px; color: var(--amber-deep); }
+  .md-view p { margin: 7px 0; }
+  .md-view a { color: var(--amber-deep); text-decoration: underline; text-underline-offset: 2px; }
+  .md-view ul, .md-view ol { margin: 7px 0; padding-left: 22px; }
+  .md-view li { margin: 3px 0; }
+  .md-view li > ul, .md-view li > ol { margin: 2px 0; }
+  .md-view code {
+    font-family: var(--mono); font-size: 11.5px; color: var(--amber-deep);
+    background: var(--amber-soft); border: 1px solid var(--amber-line);
+    border-radius: 5px; padding: 1px 5px;
+  }
+  .md-view pre.md-code {
+    background: var(--term-bg); color: var(--term-ink);
+    border-radius: 8px; padding: 12px 14px; overflow: auto; margin: 10px 0;
+    font-family: var(--mono); font-size: 11.5px; line-height: 1.55;
+  }
+  .md-view pre.md-code code { background: none; border: none; color: inherit; padding: 0; font-size: inherit; }
+  .md-view blockquote {
+    margin: 9px 0; padding: 5px 13px; color: var(--muted);
+    border-left: 3px solid var(--amber-fill); background: var(--amber-soft);
+    border-radius: 0 6px 6px 0;
+  }
+  .md-view table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0; font-size: 12.5px; }
+  .md-view table th, .md-view table td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .md-view table th { background: var(--panel-2); font-weight: 600; color: var(--muted); }
+  .md-view hr { border: none; border-top: 1px solid var(--line); margin: 15px 0; }
+  .md-fm { margin: 0 0 12px; }
+  .md-fm summary { cursor: pointer; font-family: var(--mono); font-size: 10px; letter-spacing: .16em; color: var(--faint); }
+  .md-fm pre {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 13px; overflow: auto; color: var(--muted);
+    font-family: var(--mono); font-size: 11px; line-height: 1.55;
+  }
+
   .panel {
     flex: 1 1 auto; min-height: 0;
     background: var(--panel);
@@ -417,6 +483,19 @@
     <button data-tab="library" title="共享仓 canonical 的技能本体（唯一事实源），可查看 SKILL.md">技能库<span class="tab-n" id="cnt-library">0</span></button>
   </div>
   <div class="tabs-hint" id="tabsHint"></div>
+  <div class="toolbar" id="toolbar">
+    <input type="search" id="searchBox" placeholder="搜索名称 / 简介 / 关键词（空格分隔多词）…"
+           oninput="onSearch(this.value)" autocomplete="off">
+    <select id="platformSel" onchange="onPlatform(this.value)" aria-label="平台筛选">
+      <option value="all">全部平台</option>
+      <option value="codex">codex</option>
+      <option value="claude">claude</option>
+      <option value="workbuddy">workbuddy</option>
+      <option value="trae">trae</option>
+    </select>
+    <button id="clearFilter" onclick="clearFilters()" style="display:none">清除筛选</button>
+    <span class="filter-info" id="filterInfo"></span>
+  </div>
   <div class="panel" id="panel"></div>
 
   <div class="foot-note">127.0.0.1 ONLY · 唯一事实源 CANONICAL · 写操作经 AUDIT.LOGL 留痕 · 网页只读不编辑</div>
@@ -568,6 +647,37 @@ window.setPageSize = function (v) {
   render();
 };
 
+// ---- 搜索筛选 ----
+let query = "";
+let platformFilter = "all";
+
+const curTab = () => $("#tabs button.active").dataset.tab;
+const filtersActive = () => !!(query || platformFilter !== "all");
+
+window.onSearch = function (v) {
+  query = v.trim().toLowerCase();
+  pagePos[curTab()] = 1;
+  render();
+};
+window.onPlatform = function (v) {
+  platformFilter = v;
+  pagePos[curTab()] = 1;
+  render();
+};
+window.clearFilters = function () {
+  query = ""; platformFilter = "all";
+  $("#searchBox").value = ""; $("#platformSel").value = "all";
+  render();
+};
+
+// 平台行匹配：missing-canonical 等无平台行的 platform 为 "-"，不受平台筛选限制
+function matchRow(f) {
+  if (platformFilter !== "all" && f.platform !== "-" && f.platform !== platformFilter) return false;
+  if (!query) return true;
+  const hay = [f.name, f.detail || "", rowDesc(f), f.platform || ""].join(" ").toLowerCase();
+  return query.split(/\s+/).every(t => hay.includes(t));
+}
+
 function render() {
   const g = groupByStatus();
   renderCards();
@@ -577,16 +687,34 @@ function render() {
   const problemRows = [];
   for (const st of PROBLEM_STATUSES) problemRows.push(...(g[st] || []));
   const managedRows = [...(g["managed-ok"] || []), ...(g["ignored"] || [])];
-  const libraryNames = [...new Set((g["managed-ok"] || []).map(f => f.name))].sort();
+  const allLib = libraryRows();
+  const pend = pendingRows.filter(matchRow);
+  const prob = problemRows.filter(matchRow);
+  const man = managedRows.filter(matchRow);
+  const lib = allLib.filter(matchLibraryRow);
   renderTabCounts(g, {
     pending: pendingRows.length, problems: problemRows.length,
-    managed: managedRows.length, library: libraryNames.length
+    managed: managedRows.length, library: allLib.length
   });
-  const tab = $("#tabs button.active").dataset.tab;
-  if (tab === "pending") renderPending(pendingRows);
-  else if (tab === "problems") renderProblems(problemRows);
-  else if (tab === "managed") renderManaged(managedRows);
-  else renderLibrary(libraryNames);
+  // 筛选提示：页签计数保持全量，这里显示当前页签的匹配数
+  const tab = curTab();
+  const totals = { pending: pendingRows.length, problems: problemRows.length,
+                   managed: managedRows.length, library: allLib.length };
+  const shown = { pending: pend, problems: prob, managed: man, library: lib }[tab];
+  $("#filterInfo").textContent =
+    filtersActive() ? `FILTER ${shown.length} / ${totals[tab]}` : "";
+  $("#clearFilter").style.display = filtersActive() ? "" : "none";
+  // 有数据但被筛没：显示筛选空态（与真正无数据的空态区分）
+  if (filtersActive() && !shown.length && totals[tab]) {
+    $("#panel").innerHTML = `<div class="empty"><div class="glyph">⌕</div>
+      <div class="et">没有匹配的技能</div>
+      <div class="es">调整关键词或平台筛选，或 <button onclick="clearFilters()">清除筛选</button></div></div>`;
+    return;
+  }
+  if (tab === "pending") renderPending(pend);
+  else if (tab === "problems") renderProblems(prob);
+  else if (tab === "managed") renderManaged(man);
+  else renderLibrary(lib);
 }
 
 // 行简介：优先平台侧 description（未采纳技能），其次 canonical 的
@@ -655,12 +783,24 @@ function renderManaged(rows) {
       <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody></table></div>${pagerBar("managed", pg)}`;
 }
 
-function renderLibrary(names) {
-  if (!names.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
+// 技能库行构建（render 与 renderLibrary 共用）
+function libraryRows() {
   const okFinds = DATA.findings.filter(f => f.status === "managed-ok");
   const platsOf = slug => [...new Set(okFinds.filter(f => f.name === slug).map(f => f.platform))];
-  const rows = names.map(slug => ({ slug, plats: platsOf(slug),
-    desc: (DATA.descriptions || {})[slug] || "" }));
+  return [...new Set(okFinds.map(f => f.name))].sort().map(slug =>
+    ({ slug, plats: platsOf(slug), desc: (DATA.descriptions || {})[slug] || "" }));
+}
+
+// 技能库行匹配：平台筛选按"已下发平台"判断
+function matchLibraryRow(r) {
+  if (platformFilter !== "all" && !r.plats.includes(platformFilter)) return false;
+  if (!query) return true;
+  const hay = [r.slug, r.desc, r.plats.join(" ")].join(" ").toLowerCase();
+  return query.split(/\s+/).every(t => hay.includes(t));
+}
+
+function renderLibrary(rows) {
+  if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
   const pg = pageSlice(rows, "library");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
     <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td>${r.plats.map(badge).join(" ")}</td>
@@ -724,7 +864,83 @@ window.openDiff = async function (platform, name) {
   } catch (e) { $("#modalBody").innerHTML = `<div class="warn">${esc(e.message)}</div>`; }
 };
 
-// SKILL.md 只读查看器：英文内容提供离线英译中切换（译文仅预览，不落盘）
+// ---- 零依赖 Markdown 渲染（先整体转义再有限解析，无 XSS 注入面） ----
+function mdToHtml(src) {
+  const lines = String(src).replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+  // 行内转换：转义后的文本上做有限替换；链接仅允许 http(s)
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // frontmatter 元数据折叠展示，不混入正文
+  if (lines[0] && lines[0].trim() === "---") {
+    let end = -1;
+    for (let k = 1; k < lines.length; k++)
+      if (lines[k].trim() === "---") { end = k; break; }
+    if (end > 0) {
+      out.push(`<details class="md-fm"><summary>FRONTMATTER · 元数据</summary><pre>${esc(lines.slice(1, end).join("\n"))}</pre></details>`);
+      i = end + 1;
+    }
+  }
+  const isTableSep = l => /^\s*\|[\s:|-]+\|\s*$/.test(l);
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      const buf = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) buf.push(lines[i++]);
+      i++;
+      out.push(`<pre class="md-code"><code>${esc(buf.join("\n"))}</code></pre>`);
+      continue;
+    }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); i++; continue; }
+    if (/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)) { out.push("<hr>"); i++; continue; }
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+      const cells = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+      const head = cells(line); i += 2;
+      const body = [];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) body.push(cells(lines[i++]));
+      out.push(`<table><thead><tr>${head.map(c => `<th>${inline(c)}</th>`).join("")}</tr></thead><tbody>${
+        body.map(r => `<tr>${r.map(c => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+      continue;
+    }
+    if (/^\s*>\s?/.test(line)) {
+      const buf = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^\s*>\s?/, ""));
+      out.push(`<blockquote>${mdToHtml(buf.join("\n"))}</blockquote>`);
+      continue;
+    }
+    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+      const ordered = /^\s*\d+\./.test(line);
+      const items = []; let cur = null;
+      while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+        const indent = lines[i].match(/^\s*/)[0].length;
+        const text = lines[i].replace(/^\s*([-*+]|\d+\.)\s+/, "");
+        if (indent >= 2 && cur) cur.sub.push(text);
+        else { cur = { text, sub: [] }; items.push(cur); }
+        i++;
+      }
+      const lis = items.map(it => `<li>${inline(it.text)}${
+        it.sub.length ? `<${ordered ? "ol" : "ul"}>${it.sub.map(s => `<li>${inline(s)}</li>`).join("")}</${ordered ? "ol" : "ul"}>` : ""}</li>`).join("");
+      out.push(`<${ordered ? "ol" : "ul"}>${lis}</${ordered ? "ol" : "ul"}>`);
+      continue;
+    }
+    if (!line.trim()) { i++; continue; }
+    const buf = [line]; i++;
+    while (i < lines.length && lines[i].trim() &&
+      !/^\s*(#{1,6}\s|```|>|\|)/.test(lines[i]) &&
+      !/^\s*([-*+]|\d+\.)\s+/.test(lines[i]) &&
+      !/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(lines[i])) buf.push(lines[i++]);
+    out.push(`<p>${buf.map(inline).join("<br>")}</p>`);
+  }
+  return out.join("\n");
+}
+
+// SKILL.md 只读查看器：默认 Markdown 渲染，可切原文；英文内容提供离线英译中（译文仅预览，不落盘）
 function isMostlyEnglish(text) {
   const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
   const lat = (text.match(/[A-Za-z]/g) || []).length;
@@ -733,18 +949,30 @@ function isMostlyEnglish(text) {
 
 function showSkillViewer(title, meta, content) {
   const english = isMostlyEnglish(content);
-  modal(title, `<div class="meta-line">${meta}</div><pre class="skill-view" id="skillPre"></pre>`,
+  let translated = null, showingZh = false, rawMode = false;
+  modal(title,
+    `<div class="meta-line">${meta}<span class="view-toggle">
+       <button id="modeRawBtn" title="查看未经排版的原始文本">原文</button><button id="modeMdBtn" class="active" title="渲染标题/代码块/表格等排版">渲染</button>
+     </span></div><div class="md-body" id="mdBody"></div>`,
     `<button onclick="closeModal()">关闭</button>` +
     (english ? `<button class="primary" id="translateBtn">译为中文</button>` : ""));
-  const pre = $("#skillPre");
-  pre.textContent = content;
+  const paint = () => {
+    const text = showingZh ? translated : content;
+    $("#mdBody").innerHTML = rawMode
+      ? `<pre class="skill-view">${esc(text)}</pre>`
+      : `<div class="md-view">${mdToHtml(text)}</div>`;
+    $("#modeRawBtn").classList.toggle("active", rawMode);
+    $("#modeMdBtn").classList.toggle("active", !rawMode);
+  };
+  $("#modeRawBtn").onclick = () => { rawMode = true; paint(); };
+  $("#modeMdBtn").onclick = () => { rawMode = false; paint(); };
+  paint();
   const btn = $("#translateBtn");
   if (!btn) return;
-  let translated = null, showingZh = false;
   btn.onclick = async () => {
     if (translated !== null) {
       showingZh = !showingZh;
-      pre.textContent = showingZh ? translated : content;
+      paint();
       btn.textContent = showingZh ? "查看原文" : "译为中文";
       return;
     }
@@ -753,7 +981,7 @@ function showSkillViewer(title, meta, content) {
       const r = await api("/api/translate", { method: "POST", body: { text: content } });
       if (r.skipped) { btn.remove(); return; }
       translated = r.translated; showingZh = true;
-      pre.textContent = translated;
+      paint();
       btn.textContent = "查看原文"; btn.disabled = false;
       toast(`翻译引擎：${r.engine}（仅预览，不写文件）`, "ok");
     } catch (e) {
