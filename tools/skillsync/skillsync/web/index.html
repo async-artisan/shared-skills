@@ -9,132 +9,152 @@
 <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0c0d10;
-    --bg2: #0f1115;
-    --panel: #13161c;
-    --raise: #1c2029;
-    --raise2: #232733;
-    --ink: #ece8df;
-    --muted: #8f95a3;
-    --faint: #5f6572;
-    --line: rgba(255,255,255,.09);
-    --line-strong: rgba(255,255,255,.18);
-    --amber: #ffb020;
-    --amber-deep: #e69400;
-    --amber-soft: rgba(255,176,32,.12);
-    --amber-line: rgba(255,176,32,.32);
-    --green: #55e08f;
-    --green-soft: rgba(85,224,143,.10);
-    --red: #ff5f56;
-    --red-soft: rgba(255,95,86,.10);
-    --blue: #6aa6ff;
-    --blue-soft: rgba(106,166,255,.10);
-    --violet: #c08cff;
-    --violet-soft: rgba(192,140,255,.10);
-    --pink: #f478b8;
-    --pink-soft: rgba(244,120,184,.10);
+    --bg: #e7ebf1;
+    --bg-deep: #dde3ec;
+    --panel: #ffffff;
+    --panel-2: #f7f9fc;
+    --raise: #f1f4f9;
+    --ink: #182030;
+    --ink-soft: #33404f;
+    --muted: #5b6576;
+    --faint: #8a93a3;
+    --line: #dbe1ea;
+    --line-strong: #c2cad8;
+    --shadow-card: 0 1px 2px rgba(24,39,60,.05), 0 4px 14px rgba(24,39,60,.06);
+    --shadow-pop: 0 18px 50px rgba(24,39,60,.22);
+
+    --amber: #c2700c;
+    --amber-fill: #f39a18;
+    --amber-deep: #d9820a;
+    --amber-soft: #fdf3e2;
+    --amber-line: #f0d29a;
+    --green: #177a41;
+    --green-soft: #e7f6ec;
+    --green-line: #b7e0c4;
+    --red: #cf2e2e;
+    --red-soft: #fdeceb;
+    --red-line: #f3c1be;
+    --blue: #1d57c4;
+    --blue-soft: #e9f0fd;
+    --blue-line: #bcd2f6;
+    --violet: #7239c9;
+    --violet-soft: #f2ebfd;
+    --violet-line: #d8c4f4;
+    --pink: #c2367c;
+    --pink-soft: #fcebf4;
+    --pink-line: #f2bfda;
+
+    --term-bg: #10141b;
+    --term-ink: #d3dbe8;
+    --term-line: rgba(255,255,255,.10);
+
     --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "PingFang SC", monospace;
     --disp: "Martian Mono", "IBM Plex Mono", ui-monospace, monospace;
     --sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   }
   * { box-sizing: border-box; }
-  html { scrollbar-color: #2a2f3a transparent; }
+  html { height: 100%; scrollbar-color: #c6cedb transparent; }
   body {
     margin: 0;
+    height: 100%;
+    overflow: hidden;
+    display: flex; flex-direction: column;
     font: 13.5px/1.65 var(--sans);
     background: var(--bg);
     color: var(--ink);
-    min-height: 100vh;
   }
   body::before {
     content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
     background:
-      radial-gradient(1100px 520px at 82% -12%, rgba(255,176,32,.075), transparent 60%),
-      radial-gradient(900px 620px at -12% 112%, rgba(106,166,255,.05), transparent 55%),
-      linear-gradient(180deg, var(--bg), var(--bg2));
+      radial-gradient(1000px 480px at 84% -10%, rgba(243,154,24,.10), transparent 60%),
+      radial-gradient(820px 560px at -10% 110%, rgba(29,87,196,.07), transparent 55%),
+      linear-gradient(180deg, #eef1f6, var(--bg) 38%, var(--bg-deep));
   }
   body::after {
     content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
     background-image:
-      linear-gradient(rgba(255,255,255,.032) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.032) 1px, transparent 1px);
+      linear-gradient(rgba(24,40,66,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(24,40,66,.04) 1px, transparent 1px);
     background-size: 44px 44px;
-    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 10%, transparent 78%);
-            mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 10%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 8%, transparent 78%);
+            mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 8%, transparent 78%);
   }
-  ::selection { background: rgba(255,176,32,.28); }
+  ::selection { background: rgba(243,154,24,.28); }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-thumb { background: #2a2f3a; border-radius: 6px; border: 2px solid var(--bg); }
-  ::-webkit-scrollbar-thumb:hover { background: #38404e; }
+  ::-webkit-scrollbar-thumb { background: #c2cad8; border-radius: 6px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-thumb:hover { background: #aab5c6; }
   ::-webkit-scrollbar-track { background: transparent; }
 
   /* ---------- 顶栏 ---------- */
   header {
-    position: sticky; top: 0; z-index: 20;
-    background: rgba(12,13,16,.86);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    flex: none; z-index: 20;
+    background: rgba(255,255,255,.92);
     border-bottom: 1px solid var(--line);
   }
-  .header-inner { max-width: 1240px; margin: 0 auto; padding: 13px 24px; display: flex; align-items: center; gap: 16px; }
+  .header-inner { max-width: 1240px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
   .mark {
     width: 34px; height: 34px; flex: none; border-radius: 7px;
     border: 1px solid var(--amber-line); background: var(--amber-soft);
     color: var(--amber); display: grid; place-items: center;
-    box-shadow: inset 0 0 12px rgba(255,176,32,.12);
+    box-shadow: inset 0 0 10px rgba(243,154,24,.14);
   }
-  .wm-name { font-family: var(--disp); font-weight: 800; font-size: 15px; letter-spacing: .02em; line-height: 1.15; }
+  .wm-name { font-family: var(--disp); font-weight: 800; font-size: 15px; letter-spacing: .02em; line-height: 1.15; color: var(--ink); }
   .wm-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: .22em; color: var(--faint); margin-top: 2px; }
   .spacer { flex: 1; }
   .chip {
     font-family: var(--mono); font-size: 11px; color: var(--muted);
-    border: 1px solid var(--line); background: rgba(255,255,255,.03);
+    border: 1px solid var(--line); background: var(--panel-2);
     border-radius: 5px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 8px;
     max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex: none;
-           box-shadow: 0 0 0 0 rgba(85,224,143,.6); animation: pulse 2.2s infinite; }
+  .pulse { width: 6px; height: 6px; border-radius: 50%; background: #22a35c; flex: none;
+           box-shadow: 0 0 0 0 rgba(34,163,92,.45); animation: pulse 2.2s infinite; }
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(85,224,143,.5); }
-    70% { box-shadow: 0 0 0 7px rgba(85,224,143,0); }
-    100% { box-shadow: 0 0 0 0 rgba(85,224,143,0); }
+    0% { box-shadow: 0 0 0 0 rgba(34,163,92,.45); }
+    70% { box-shadow: 0 0 0 7px rgba(34,163,92,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,163,92,0); }
   }
   .scan-time { font-family: var(--mono); font-size: 10.5px; color: var(--faint); letter-spacing: .04em; }
 
   button {
     font-family: var(--sans); font-size: 12.5px; font-weight: 600;
-    color: var(--ink); background: var(--raise);
+    color: var(--ink-soft); background: var(--panel);
     border: 1px solid var(--line-strong); border-radius: 5px;
-    padding: 6px 13px; cursor: pointer; transition: border-color .15s, background .15s, transform .08s;
+    padding: 6px 13px; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s, transform .08s;
   }
-  button:hover { border-color: var(--amber-line); background: #22262f; }
+  button:hover { border-color: #9fb0c6; background: var(--raise); }
   button:active { transform: translateY(1px); }
-  button.primary { background: var(--amber); border-color: var(--amber); color: #171206; font-weight: 700; }
-  button.primary:hover { background: var(--amber-deep); border-color: var(--amber-deep); }
-  button.danger { color: var(--red); border-color: rgba(255,95,86,.4); background: var(--red-soft); }
-  button.danger:hover { border-color: var(--red); background: rgba(255,95,86,.18); }
-  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: var(--amber-fill); border-color: var(--amber-deep); color: #241402; font-weight: 700; }
+  button.primary:hover { background: var(--amber-deep); border-color: #b06a08; }
+  button.danger { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+  button.danger:hover { border-color: #e28985; background: #f9dedd; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
   #refreshBtn { background: transparent; color: var(--amber); border-color: var(--amber-line); font-family: var(--mono);
                 font-size: 11.5px; letter-spacing: .06em; }
   #refreshBtn:hover { background: var(--amber-soft); }
 
-  main { max-width: 1240px; margin: 26px auto 40px; padding: 0 24px; }
+  main {
+    flex: 1 1 auto; min-height: 0; width: 100%; max-width: 1240px;
+    margin: 0 auto; padding: 16px 24px 10px;
+    display: flex; flex-direction: column;
+  }
 
   /* ---------- 仪表卡片 ---------- */
-  .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 18px; }
+  .cards { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 14px; }
   .card {
     position: relative; overflow: hidden;
-    background: linear-gradient(180deg, var(--panel), #101319);
+    background: var(--panel);
     border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: var(--shadow-card);
     padding: 15px 16px 13px 18px;
-    animation: rise .5s cubic-bezier(.2,.7,.2,1) both;
+    animation: rise .45s cubic-bezier(.2,.7,.2,1) both;
   }
   .card::before {
-    content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--line-strong);
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--line-strong);
   }
-  .card.green::before { background: var(--green); box-shadow: 0 0 12px rgba(85,224,143,.5); }
-  .card.red::before { background: var(--red); box-shadow: 0 0 12px rgba(255,95,86,.5); }
-  .card.amber::before { background: var(--amber); box-shadow: 0 0 12px rgba(255,176,32,.5); }
+  .card.green::before { background: #22a35c; }
+  .card.red::before { background: var(--red); }
+  .card.amber::before { background: var(--amber-fill); }
   .card:nth-child(1) { animation-delay: .04s; }
   .card:nth-child(2) { animation-delay: .10s; }
   .card:nth-child(3) { animation-delay: .16s; }
@@ -143,7 +163,7 @@
   .card .idx { font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; color: var(--faint); }
   .card .n {
     font-family: var(--disp); font-weight: 700; font-size: 32px; line-height: 1.1;
-    letter-spacing: -.01em; margin: 3px 0 2px; font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em; margin: 3px 0 2px; font-variant-numeric: tabular-nums; color: var(--ink);
   }
   .card.green .n { color: var(--green); }
   .card.red .n { color: var(--red); }
@@ -153,30 +173,31 @@
 
   /* ---------- 同步控制台 ---------- */
   .syncbox {
-    background: linear-gradient(180deg, var(--panel), #101319);
-    border: 1px solid var(--line); border-radius: 8px;
-    padding: 13px 16px; margin-bottom: 20px;
+    background: var(--amber-soft);
+    border: 1px solid var(--amber-line); border-radius: 8px;
+    box-shadow: var(--shadow-card);
+    padding: 12px 16px; margin-bottom: 14px;
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-    animation: rise .5s .32s cubic-bezier(.2,.7,.2,1) both;
+    animation: rise .45s .32s cubic-bezier(.2,.7,.2,1) both;
   }
-  .sync-label { flex: none; padding-right: 16px; border-right: 1px solid var(--line); }
+  .sync-label { flex: none; padding-right: 16px; border-right: 1px solid var(--amber-line); }
   .sync-label .lab-en { font-family: var(--mono); font-size: 9px; letter-spacing: .22em; color: var(--amber); }
-  .sync-label .lab-cn { font-size: 13px; font-weight: 600; margin-top: 1px; }
-  .sync-actions { display: flex; gap: 8px; }
-  .syncbox .hint { color: var(--faint); font-size: 11.5px; }
-  .syncbox .hint code { font-family: var(--mono); color: var(--muted); background: rgba(255,255,255,.05);
+  .sync-label .lab-cn { font-size: 13px; font-weight: 700; margin-top: 1px; color: #5f3a08; }
+  .sync-actions { flex: none; display: flex; gap: 8px; }
+  .syncbox .hint { color: #8a6429; font-size: 11.5px; }
+  .syncbox .hint code { font-family: var(--mono); color: #6e4c12; background: rgba(194,112,12,.08);
                         padding: 1px 5px; border-radius: 3px; font-size: 10.5px; }
-  .syncbox .hint b { color: var(--muted); font-weight: 500; font-family: var(--mono); font-size: 11px; }
+  .syncbox .hint b { color: var(--amber); font-weight: 600; font-family: var(--mono); font-size: 11px; }
 
   /* ---------- Tabs ---------- */
-  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 4px; }
+  .tabs { flex: none; display: flex; gap: 2px; border-bottom: 1px solid var(--line); padding: 0 4px; }
   .tabs button {
     background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
     border-radius: 0; color: var(--muted); padding: 10px 14px;
     font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px;
   }
   .tabs button:hover { background: none; border-bottom-color: var(--line-strong); color: var(--ink); }
-  .tabs button.active { color: var(--ink); border-bottom-color: var(--amber); }
+  .tabs button.active { color: var(--amber); border-bottom-color: var(--amber-fill); font-weight: 600; }
   .tab-n {
     font-family: var(--mono); font-size: 10px; color: var(--muted);
     min-width: 22px; text-align: center; padding: 1px 6px;
@@ -186,23 +207,30 @@
   .tabs button.active .tab-n { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
 
   .panel {
-    background: linear-gradient(180deg, var(--panel), #101319);
+    flex: 1 1 auto; min-height: 0;
+    background: var(--panel);
     border: 1px solid var(--line); border-top: none;
-    border-radius: 0 0 8px 8px; min-height: 320px; overflow: hidden;
+    border-radius: 0 0 8px 8px;
+    display: flex; flex-direction: column;
+    box-shadow: var(--shadow-card);
   }
-  .panel > * { animation: fade .28s ease both; }
+  .panel > * { animation: fade .24s ease both; }
+  /* 唯一滚动区：表格内部滚动，分页条始终钉在底部可见 */
+  .tbl-wrap { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .panel > .empty { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }
   @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-  table { width: 100%; border-collapse: collapse; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
   th, td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13px; }
   th {
-    font-family: var(--mono); font-weight: 500; font-size: 9.5px; letter-spacing: .18em;
+    font-family: var(--mono); font-weight: 600; font-size: 9.5px; letter-spacing: .18em;
     color: var(--faint); text-transform: uppercase;
-    background: rgba(255,255,255,.02); position: sticky; top: 0;
+    background: var(--panel-2); position: sticky; top: 0; z-index: 2;
+    box-shadow: inset 0 -1px 0 var(--line);
   }
   tbody tr { transition: background .12s; }
-  tbody tr:hover { background: rgba(255,176,32,.035); }
+  tbody tr:hover { background: var(--amber-soft); }
   tbody tr:last-child td { border-bottom: none; }
   td strong { font-weight: 600; }
   .detail { color: var(--faint); font-size: 11.5px; margin-top: 2px; line-height: 1.5; }
@@ -211,19 +239,19 @@
     display: inline-block; font-family: var(--mono); font-size: 10px; letter-spacing: .03em;
     padding: 2px 7px; border-radius: 4px; border: 1px solid; white-space: nowrap;
   }
-  .b-codex { color: var(--green); background: var(--green-soft); border-color: rgba(85,224,143,.28); }
-  .b-claude { color: var(--violet); background: var(--violet-soft); border-color: rgba(192,140,255,.28); }
-  .b-workbuddy { color: var(--pink); background: var(--pink-soft); border-color: rgba(244,120,184,.28); }
-  .b-trae { color: var(--blue); background: var(--blue-soft); border-color: rgba(106,166,255,.28); }
+  .b-codex { color: var(--green); background: var(--green-soft); border-color: var(--green-line); }
+  .b-claude { color: var(--violet); background: var(--violet-soft); border-color: var(--violet-line); }
+  .b-workbuddy { color: var(--pink); background: var(--pink-soft); border-color: var(--pink-line); }
+  .b-trae { color: var(--blue); background: var(--blue-soft); border-color: var(--blue-line); }
 
   .st { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; white-space: nowrap;
-        border: 1px solid var(--line); color: var(--muted); background: rgba(255,255,255,.03); }
+        border: 1px solid var(--line); color: var(--muted); background: var(--raise); }
   .st-fork, .st-broken-link, .st-missing-target, .st-managed-foreign, .st-missing-canonical
-    { color: var(--red); background: var(--red-soft); border-color: rgba(255,95,86,.3); }
+    { color: var(--red); background: var(--red-soft); border-color: var(--red-line); }
   .st-unregistered, .st-duplicate
     { color: var(--amber); background: var(--amber-soft); border-color: var(--amber-line); }
-  .st-synced-copy { color: var(--blue); background: var(--blue-soft); border-color: rgba(106,166,255,.3); }
-  .st-managed-ok { color: var(--green); background: var(--green-soft); border-color: rgba(85,224,143,.3); }
+  .st-synced-copy { color: var(--blue); background: var(--blue-soft); border-color: var(--blue-line); }
+  .st-managed-ok { color: var(--green); background: var(--green-soft); border-color: var(--green-line); }
   .st-ignored { color: var(--faint); }
 
   .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
@@ -234,69 +262,96 @@
   .empty .et { font-size: 13px; color: var(--muted); }
   .empty .es { font-family: var(--mono); font-size: 9.5px; letter-spacing: .24em; color: var(--faint); margin-top: 4px; }
 
+  /* ---------- 分页条 ---------- */
+  .pager-bar {
+    flex: none;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 9px 16px; background: var(--panel-2); border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+  }
+  .pager-info { margin-right: auto; }
+  .pager-info b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .pager-pages { display: flex; gap: 4px; align-items: center; }
+  .pg {
+    min-width: 28px; padding: 3px 8px; font-size: 11.5px; font-family: var(--mono);
+    border-radius: 4px; border: 1px solid var(--line-strong); background: var(--panel);
+    color: var(--ink-soft); cursor: pointer;
+  }
+  .pg:hover:not(:disabled):not(.cur) { border-color: var(--amber-line); background: var(--amber-soft); color: var(--amber); }
+  .pg.cur { background: var(--amber-fill); border-color: var(--amber-deep); color: #241402; font-weight: 700; }
+  .pg:disabled { opacity: .35; cursor: default; }
+  .pg.ellipsis { border: 0; background: none; pointer-events: none; color: var(--faint); padding: 3px 4px; }
+  .pager-size {
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    border: 1px solid var(--line-strong); border-radius: 4px; background: var(--panel);
+    padding: 3px 6px; cursor: pointer;
+  }
+
+  /* 终端块：刻意保留深色材质（输出/diff） */
   pre.out {
-    background: #090a0d; color: #cdd5e3; border: 1px solid var(--line); border-radius: 6px;
+    background: var(--term-bg); color: var(--term-ink); border: 1px solid var(--term-line); border-radius: 6px;
     padding: 13px 14px; font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
     max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-all; margin: 10px 0 0;
   }
-  .diff-add { background: rgba(85,224,143,.11); color: #9ff0c0; display: block; margin: 0 -14px; padding: 0 14px; }
-  .diff-del { background: rgba(255,95,86,.11); color: #ffa39d; display: block; margin: 0 -14px; padding: 0 14px; }
-  .diff-hunk { color: var(--blue); display: block; }
+  .diff-add { background: rgba(85,224,143,.13); color: #8cebb3; display: block; margin: 0 -14px; padding: 0 14px; }
+  .diff-del { background: rgba(255,95,86,.13); color: #ffa39d; display: block; margin: 0 -14px; padding: 0 14px; }
+  .diff-hunk { color: #7db4ff; display: block; }
 
   /* ---------- 模态框 ---------- */
   .modal-mask {
-    position: fixed; inset: 0; background: rgba(6,7,9,.66); backdrop-filter: blur(3px);
+    position: fixed; inset: 0; background: rgba(24,32,48,.34); backdrop-filter: blur(3px);
     display: none; align-items: center; justify-content: center; z-index: 30; padding: 20px;
   }
   .modal-mask.show { display: flex; animation: fade .18s ease both; }
   .modal {
     background: var(--panel); border: 1px solid var(--line-strong); border-radius: 10px;
     width: min(820px, 94vw); max-height: 86vh; display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 24px 70px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+    box-shadow: var(--shadow-pop);
   }
   .modal-mask.show .modal { animation: pop .22s cubic-bezier(.2,.8,.2,1) both; }
   @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
   .modal h3 {
     margin: 0; padding: 15px 20px; border-bottom: 1px solid var(--line);
-    font-family: var(--mono); font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; background: var(--panel-2);
   }
-  .modal h3::before { content: ""; width: 7px; height: 7px; background: var(--amber); border-radius: 1px; flex: none; }
+  .modal h3::before { content: ""; width: 7px; height: 7px; background: var(--amber-fill); border-radius: 1px; flex: none; }
   .modal .body { padding: 18px 20px; overflow: auto; }
   .modal .foot {
     padding: 12px 20px; border-top: 1px solid var(--line);
-    display: flex; justify-content: flex-end; gap: 8px; background: rgba(255,255,255,.02);
+    display: flex; justify-content: flex-end; gap: 8px; background: var(--panel-2);
   }
   .modal label.ck { display: inline-flex; gap: 7px; align-items: center; margin-right: 16px;
                     font-size: 13px; color: var(--ink); cursor: pointer; }
-  .modal label.ck input { accent-color: var(--amber); }
+  .modal label.ck input { accent-color: var(--amber-deep); }
   .modal .warn {
-    background: var(--amber-soft); border: 1px solid var(--amber-line); color: #f0c777;
+    background: var(--amber-soft); border: 1px solid var(--amber-line); color: #7d5210;
     border-radius: 6px; padding: 9px 12px; font-size: 12px; margin: 12px 0 0;
   }
   .meta-line { color: var(--muted); font-size: 11.5px; margin-bottom: 10px; font-family: var(--mono); }
   .skill-view {
     font-family: var(--mono); font-size: 11.5px; line-height: 1.7; white-space: pre-wrap;
-    background: #090a0d; border: 1px solid var(--line); border-radius: 6px;
-    padding: 14px; max-height: 60vh; overflow: auto; color: #cdd5e3;
+    background: var(--term-bg); color: var(--term-ink); border: 1px solid var(--term-line); border-radius: 6px;
+    padding: 14px; max-height: 60vh; overflow: auto;
   }
 
   /* ---------- Toast ---------- */
   #toasts { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: flex; flex-direction: column; gap: 8px; }
   .toast {
-    position: relative; background: var(--raise2); color: var(--ink);
+    position: relative; background: var(--panel); color: var(--ink);
     border: 1px solid var(--line-strong); border-radius: 7px;
     padding: 10px 16px 10px 18px; font-size: 12.5px; max-width: 440px;
-    box-shadow: 0 12px 36px rgba(0,0,0,.5);
+    box-shadow: 0 12px 30px rgba(24,39,60,.20);
     animation: toast-in .25s cubic-bezier(.2,.8,.2,1) both;
   }
   .toast::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
                    border-radius: 2px; background: var(--blue); }
-  .toast.err { border-color: rgba(255,95,86,.4); } .toast.err::before { background: var(--red); }
-  .toast.ok { border-color: rgba(85,224,143,.35); } .toast.ok::before { background: var(--green); }
+  .toast.err { border-color: var(--red-line); } .toast.err::before { background: var(--red); }
+  .toast.ok { border-color: var(--green-line); } .toast.ok::before { background: #22a35c; }
   @keyframes toast-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 
   .foot-note {
-    margin-top: 26px; text-align: center;
+    flex: none; margin-top: 7px; text-align: center;
     font-family: var(--mono); font-size: 9.5px; letter-spacing: .18em; color: var(--faint);
   }
 
@@ -369,6 +424,7 @@
 "use strict";
 const PLATFORMS = ["codex", "claude", "workbuddy", "trae"];
 const PROBLEM_STATUSES = ["fork", "broken-link", "missing-target", "managed-foreign", "missing-canonical"];
+const PAGE_SIZES = [15, 30, 50];
 const STATUS_TEXT = {
   "managed-ok": "已纳管（软链）", "synced-copy": "内容一致副本", "fork": "已分叉",
   "unregistered": "未登记", "duplicate": "内容重复", "missing-target": "平台缺失",
@@ -376,6 +432,8 @@ const STATUS_TEXT = {
   "missing-canonical": "缺 canonical", "ignored": "已忽略"
 };
 let DATA = null;
+let pageSize = 15;
+const pagePos = { pending: 1, problems: 1, managed: 1, library: 1 };
 
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -431,15 +489,11 @@ function renderCards() {
   $("#lastApply").textContent = la?.time ? `${la.time}（变更 ${la.changed ?? "?"}）` : "无";
 }
 
-function renderTabCounts(g) {
-  const pending = (g["unregistered"] || []).length + (g["duplicate"] || []).length + (g["synced-copy"] || []).length;
-  const problems = PROBLEM_STATUSES.reduce((n, st) => n + (g[st] || []).length, 0);
-  const managed = (g["managed-ok"] || []).length + (g["ignored"] || []).length;
-  const library = new Set((g["managed-ok"] || []).map(f => f.name)).size;
-  $("#cnt-pending").textContent = pending;
-  $("#cnt-problems").textContent = problems;
-  $("#cnt-managed").textContent = managed;
-  $("#cnt-library").textContent = library;
+function renderTabCounts(g, counts) {
+  $("#cnt-pending").textContent = counts.pending;
+  $("#cnt-problems").textContent = counts.problems;
+  $("#cnt-managed").textContent = counts.managed;
+  $("#cnt-library").textContent = counts.library;
 }
 
 function badge(p) { return `<span class="badge b-${p}">${p}</span>`; }
@@ -448,47 +502,106 @@ function emptyBlock(glyph, text, sub) {
   return `<div class="empty"><div class="glyph">${glyph}</div><div class="et">${text}</div><div class="es">${sub}</div></div>`;
 }
 
+// ---- 分页：唯一一套切片逻辑 ----
+function pageSlice(rows, tab) {
+  const total = rows.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pagePos[tab] > pages) pagePos[tab] = pages;
+  if (pagePos[tab] < 1) pagePos[tab] = 1;
+  const page = pagePos[tab];
+  const start = (page - 1) * pageSize;
+  return { items: rows.slice(start, start + pageSize), total, pages, page };
+}
+
+function pageNumbers(page, pages) {
+  const out = [];
+  const push = n => out.push(n);
+  if (pages <= 7) { for (let i = 1; i <= pages; i++) push(i); return out; }
+  push(1);
+  if (page > 3) out.push("…");
+  for (let i = Math.max(2, page - 1); i <= Math.min(pages - 1, page + 1); i++) push(i);
+  if (page < pages - 2) out.push("…");
+  push(pages);
+  return out;
+}
+
+function pagerBar(tab, info) {
+  const { total, pages, page } = info;
+  if (!total) return "";
+  const sizeSel = PAGE_SIZES.map(n =>
+    `<option value="${n}" ${n === pageSize ? "selected" : ""}>${n} 条/页</option>`).join("");
+  let pagesHtml = "";
+  if (pages > 1) {
+    pagesHtml = `<div class="pager-pages">
+      <button class="pg" ${page === 1 ? "disabled" : ""} onclick="goPage('${tab}', ${page - 1})">‹</button>
+      ${pageNumbers(page, pages).map(n => n === "…"
+        ? `<span class="pg ellipsis">…</span>`
+        : `<button class="pg ${n === page ? "cur" : ""}" onclick="goPage('${tab}', ${n})">${n}</button>`).join("")}
+      <button class="pg" ${page === pages ? "disabled" : ""} onclick="goPage('${tab}', ${page + 1})">›</button>
+    </div>`;
+  }
+  return `<div class="pager-bar">
+    <span class="pager-info">共 <b>${total}</b> 条 · 第 <b>${page}</b> / ${pages} 页</span>
+    <select class="pager-size" onchange="setPageSize(this.value)" aria-label="每页条数">${sizeSel}</select>
+    ${pagesHtml}
+  </div>`;
+}
+
+window.goPage = function (tab, n) {
+  pagePos[tab] = n;
+  render();
+};
+window.setPageSize = function (v) {
+  pageSize = Number(v);
+  for (const k of Object.keys(pagePos)) pagePos[k] = 1;
+  render();
+};
+
 function render() {
   const g = groupByStatus();
   renderCards();
-  renderTabCounts(g);
-  const tab = $("#tabs button.active").dataset.tab;
-  if (tab === "pending") renderPending(g);
-  else if (tab === "problems") renderProblems(g);
-  else if (tab === "managed") renderManaged(g);
-  else renderLibrary();
-}
-
-function renderPending(g) {
-  const rows = [
+  const pendingRows = [
     ...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])
   ];
+  const problemRows = [];
+  for (const st of PROBLEM_STATUSES) problemRows.push(...(g[st] || []));
+  const managedRows = [...(g["managed-ok"] || []), ...(g["ignored"] || [])];
+  const libraryNames = [...new Set((g["managed-ok"] || []).map(f => f.name))].sort();
+  renderTabCounts(g, {
+    pending: pendingRows.length, problems: problemRows.length,
+    managed: managedRows.length, library: libraryNames.length
+  });
+  const tab = $("#tabs button.active").dataset.tab;
+  if (tab === "pending") renderPending(pendingRows);
+  else if (tab === "problems") renderProblems(problemRows);
+  else if (tab === "managed") renderManaged(managedRows);
+  else renderLibrary(libraryNames);
+}
+
+function renderPending(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "没有待采纳的技能", "NO PENDING SIGNALS"); return; }
-  $("#panel").innerHTML = `<table><thead><tr>
+  const pg = pageSlice(rows, "pending");
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:230px">操作 / ACTIONS</th>
-    </tr></thead><tbody>${rows.map(f => `<tr>
+    </tr></thead><tbody>${pg.items.map(f => `<tr>
       <td>${badge(f.platform)}</td>
       <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
       <td><div class="row-actions">
         <button class="primary" onclick="openAdopt('${f.platform}', ${jstr(f.name)})">采纳…</button>
         <button onclick="ignoreOne('${f.platform}', ${jstr(f.name)})">忽略</button>
-      </div></td></tr>`).join("")}</tbody></table>`;
+      </div></td></tr>`).join("")}</tbody></table></div>${pagerBar("pending", pg)}`;
 }
 
-function renderProblems(g) {
-  let html = "";
-  for (const status of PROBLEM_STATUSES) {
-    const rows = g[status] || [];
-    if (!rows.length) continue;
-    html += rows.map(f => `<tr>
+function renderProblems(rows) {
+  if (!rows.length) { $("#panel").innerHTML = emptyBlock("✓", "没有需要处理的问题", "ALL SYSTEMS NOMINAL"); return; }
+  const pg = pageSlice(rows, "problems");
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+    <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:120px">状态 / STATUS</th><th style="width:260px">操作 / ACTIONS</th>
+    </tr></thead><tbody>${pg.items.map(f => `<tr>
       <td>${f.platform === "-" ? "" : badge(f.platform)}</td>
       <td><strong>${esc(f.name)}</strong><div class="detail">${esc(f.detail)}</div></td>
       <td>${stCell(f)}</td>
-      <td><div class="row-actions">${problemActions(f)}</div></td></tr>`).join("");
-  }
-  $("#panel").innerHTML = html
-    ? `<table><thead><tr><th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:120px">状态 / STATUS</th><th style="width:260px">操作 / ACTIONS</th></tr></thead><tbody>${html}</tbody></table>`
-    : emptyBlock("✓", "没有需要处理的问题", "ALL SYSTEMS NOMINAL");
+      <td><div class="row-actions">${problemActions(f)}</div></td></tr>`).join("")}</tbody></table></div>${pagerBar("problems", pg)}`;
 }
 
 function problemActions(f) {
@@ -504,30 +617,29 @@ function problemActions(f) {
   return "";
 }
 
-function renderManaged(g) {
-  const ok = g["managed-ok"] || [];
-  const ig = g["ignored"] || [];
-  if (!ok.length && !ig.length) { $("#panel").innerHTML = emptyBlock("———", "暂无已纳管技能", "NOTHING LINKED"); return; }
-  let html = "";
-  if (ok.length) html += `<thead><tr><th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:150px">状态 / STATUS</th></tr></thead>
-    <tbody>${ok.map(f => `<tr><td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>
-    <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody>`;
-  if (ig.length) html += `<tbody>${ig.map(f => `<tr><td>${badge(f.platform)}</td>
-    <td><strong>${esc(f.name)}</strong> <span class="st st-ignored">已忽略</span>
-    <div class="row-actions" style="margin-top:5px"><button onclick="unignoreOne('${f.platform}', ${jstr(f.name)})">取消忽略</button></div></td><td></td></tr>`).join("")}</tbody>`;
-  $("#panel").innerHTML = `<table>${html}</table>`;
+function renderManaged(rows) {
+  if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "暂无已纳管技能", "NOTHING LINKED"); return; }
+  const pg = pageSlice(rows, "managed");
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+    <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:170px">状态 / STATUS</th>
+    </tr></thead><tbody>${pg.items.map(f => f.status === "ignored" ? `<tr>
+      <td>${badge(f.platform)}</td>
+      <td><strong>${esc(f.name)}</strong> <span class="st st-ignored">已忽略</span>
+      <div class="row-actions" style="margin-top:5px"><button onclick="unignoreOne('${f.platform}', ${jstr(f.name)})">取消忽略</button></div></td>
+      <td></td></tr>` : `<tr>
+      <td>${badge(f.platform)}</td><td><strong>${esc(f.name)}</strong>
+      <div class="detail">${esc(f.detail)}</div></td><td>${stCell(f)}</td></tr>`).join("")}</tbody></table></div>${pagerBar("managed", pg)}`;
 }
 
-function renderLibrary() {
-  const skills = DATA.findings.filter(f => f.status === "managed-ok");
-  const slugs = [...new Set(skills.map(f => f.name))].sort();
-  if (!slugs.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
-  $("#panel").innerHTML = `<table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
-    <tbody>${slugs.map(slug => {
-      const plats = [...new Set(skills.filter(f => f.name === slug).map(f => f.platform))];
-      return `<tr><td><strong>${esc(slug)}</strong></td><td>${plats.map(badge).join(" ")}</td>
-      <td><div class="row-actions"><button onclick="viewSkill(${jstr(slug)})">查看 SKILL.md</button></div></td></tr>`;
-    }).join("")}</tbody></table>`;
+function renderLibrary(names) {
+  if (!names.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
+  const okFinds = DATA.findings.filter(f => f.status === "managed-ok");
+  const platsOf = slug => [...new Set(okFinds.filter(f => f.name === slug).map(f => f.platform))];
+  const rows = names.map(slug => ({ slug, plats: platsOf(slug) }));
+  const pg = pageSlice(rows, "library");
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
+    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong></td><td>${r.plats.map(badge).join(" ")}</td>
+      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看 SKILL.md</button></div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
 }
 
 // ---- 模态框 ----
