@@ -1,8 +1,8 @@
-# shared-skills
+# skill-hub
 
-跨平台 Agent Skill 单一事实源仓。一份 `skills/<slug>/SKILL.md` 通过软链下发到 Codex / Claude / WorkBuddy / TRAE 四个平台，消除多平台手工复制导致的内容分叉。
+跨平台 Agent 技能中心枢纽 (Central Hub for Agent Skills)。一份 `skills/<slug>/SKILL.md` 通过软链下发到 Codex / Claude / WorkBuddy / TRAE 四个平台，消除多平台手工复制导致的内容分叉。
 
-[![CI](https://img.shields.io/github/actions/workflow/status/async-artisan/shared-skills/ci.yml?branch=main&label=CI)](https://github.com/async-artisan/shared-skills/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/async-artisan/skill-hub/ci.yml?branch=main&label=CI)](https://github.com/async-artisan/skill-hub/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -23,11 +23,11 @@
 
 ## 安装
 
-shared-skills 是单仓自包含工具，无需 pip 安装。clone 即用：
+skill-hub 是单仓自包含工具，无需 pip 安装。clone 即用：
 
 ```bash
-git clone https://github.com/async-artisan/shared-skills.git
-cd shared-skills
+git clone https://github.com/async-artisan/skill-hub.git
+cd skill-hub
 ```
 
 要求：Python 3.10+、macOS 或 Linux（软链需文件系统支持）。首次运行任意 `skillsync` 命令时，会自动把 `registry/catalog.example.yaml` 复制为本机私有的 `registry/catalog.yaml` 空台账。

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "skillsync"
+name = "skill-hub"
 version = "0.1.0"
-description = "跨平台 Agent Skill 单仓同步工具"
+description = "跨平台 Agent 技能中心枢纽"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

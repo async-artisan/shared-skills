@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>skillsync 控制台</title>
+<title>skill-hub 控制台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -441,7 +441,7 @@
       <circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/>
     </svg>
   </div>
-  <div class="wm-name">SKILLSYNC</div>
+  <div class="wm-name">SKILL HUB</div>
   <span class="spacer"></span>
   <span class="chip" id="repo"><span class="pulse"></span>加载中…</span>
   <span class="chip" id="pretransChip" hidden></span>
@@ -608,8 +608,11 @@ async function api(path, opts = {}) {
     body: opts.body ? JSON.stringify(opts.body) : undefined
   });
   const data = await res.json();
-  if (!data.ok && res.status >= 400 && path.startsWith("/api/") && !path.includes("/scan"))
-    throw new Error(data.error || ("HTTP " + res.status));
+  if (!data.ok && res.status >= 400 && path.startsWith("/api/") && !path.includes("/scan")) {
+    const err = new Error(data.error || ("HTTP " + res.status));
+    if (data.code) err.code = data.code;  // 供调用方区分「能力缺失」与「真实故障」
+    throw err;
+  }
   return data;
 }
 
@@ -819,7 +822,8 @@ const GENERIC_PENDING_DETAIL = "平台目录中的新技能，尚未纳入共享
 // 译文进程内即时生效；后端 /api/translate 自带磁盘缓存，重启不丢。
 const DESC_ZH = new Map();  // 英文简介 -> 中文译文
 const DOC_TR = new Map();   // 查看器自动预热：SKILL.md 原文 -> 翻译 promise
-const PRETRANS = { started: false, running: false, paused: false, done: 0, total: 0 };
+// 待译集合每次按「尚无译文且未失败」重算，因此后续刷新出现的新英文简介会继续被翻译
+const PRETRANS = { running: false, paused: false, off: false, failed: new Set(), done: 0, total: 0 };
 let _pretransPainted = 0;
 
 function paintPretransChip() {
@@ -835,15 +839,15 @@ function paintPretransChip() {
 }
 
 async function pretranslateDescs() {
-  if (PRETRANS.started) return;
-  PRETRANS.started = true;
+  if (PRETRANS.running || PRETRANS.off) return;
   const g = groupByStatus();
   const pendRows = [...(g["unregistered"] || []), ...(g["duplicate"] || []), ...(g["synced-copy"] || [])];
   const uniq = [...new Set(pendRows.map(rowDesc).filter(Boolean))]
-    .filter(d => isMostlyEnglish(d) && !DESC_ZH.has(d));
+    .filter(d => isMostlyEnglish(d) && !DESC_ZH.has(d) && !PRETRANS.failed.has(d));
   if (!uniq.length) return;
   PRETRANS.running = true; PRETRANS.done = 0; PRETRANS.total = uniq.length;
   paintPretransChip();
+  let aborted = "";
   for (const d of uniq) {
     // 详情查看器打开时让路：离线翻译引擎单线程，交互请求优先
     while (PRETRANS.paused) await new Promise(r => setTimeout(r, 250));
@@ -851,7 +855,11 @@ async function pretranslateDescs() {
       const r = await api("/api/translate", { method: "POST", body: { text: d } });
       DESC_ZH.set(d, r.translated || d);
     } catch (e) {
-      toast("批量预翻译中止：" + e.message, "err");
+      // 引擎缺失属预期情况：静默关掉批量预翻译（点「译为中文」时仍会明确报错）；
+      // 失败的简介记入 failed，避免 render → 重试 形成死循环
+      if (e.code === "no-translate-engine") PRETRANS.off = true;
+      else aborted = e.message;
+      PRETRANS.failed.add(d);
       break;
     }
     PRETRANS.done++;
@@ -864,7 +872,8 @@ async function pretranslateDescs() {
   }
   PRETRANS.running = false;
   paintPretransChip();
-  if (PRETRANS.done >= PRETRANS.total)
+  if (aborted) toast("批量预翻译中止：" + aborted, "err");
+  else if (!PRETRANS.off && PRETRANS.done >= PRETRANS.total)
     toast(`英文简介已批量译好（${PRETRANS.done} 条，缓存已落盘）`, "ok");
   if (curTab() === "pending") render();
 }
@@ -940,12 +949,18 @@ function renderManaged(rows) {
 }
 
 // 技能库行构建（render 与 renderLibrary 共用）
+// 行源 = catalog 登记的 canonical 技能 ∪ 已纳管软链：导入或手工放进 skills/ 但尚未下发的
+// 技能也要能在技能库看到，否则它们在任何页签都不出现。
 function libraryRows() {
   const okFinds = DATA.findings.filter(f => f.status === "managed-ok");
   const platsOf = slug => [...new Set(okFinds.filter(f => f.name === slug).map(f => f.platform))];
-  return [...new Set(okFinds.map(f => f.name))].sort().map(slug =>
+  const registered = new Set(DATA.catalog_slugs || []);
+  const canonical = new Set(Object.keys(DATA.descriptions || {}));
+  const slugs = new Set(okFinds.map(f => f.name));
+  for (const slug of registered) if (canonical.has(slug)) slugs.add(slug);
+  return [...slugs].sort().map(slug =>
     ({ slug, plats: platsOf(slug), desc: (DATA.descriptions || {})[slug] || "",
-       archived: ARCH().has(slug) }));
+       archived: ARCH().has(slug), registered: registered.has(slug) }));
 }
 
 // 技能库行匹配：平台筛选按"已下发平台"判断
@@ -960,10 +975,12 @@ function renderLibrary(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
   const pg = pageSlice(rows, "library");
   $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
-    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ")}</td>
-      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button>${r.archived
-        ? `<button onclick="archiveOne(${jstr(r.slug)}, false)">取消归档</button>`
-        : `<button onclick="archiveOne(${jstr(r.slug)}, true)">归档</button>`}</div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
+    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ") || `<span class="muted" style="font-size:12.5px">未下发到任何平台</span>`}</td>
+      <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button>${r.registered
+        ? (r.archived
+          ? `<button onclick="archiveOne(${jstr(r.slug)}, false)">取消归档</button>`
+          : `<button onclick="archiveOne(${jstr(r.slug)}, true)">归档</button>`)
+        : `<span class="muted" style="font-size:12.5px">未登记 catalog</span>`}</div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
 }
 
 // ---- 操作历史（registry/audit.logl 的结构化留痕，最新在前） ----
@@ -1119,7 +1136,7 @@ window.importConfirmGo = async function () {
     const r = await api("/api/import/confirm", { method: "POST",
       body: { url: $("#importUrl").value.trim(), name } });
     closeModal();
-    toast(`已导入 ${r.name}（${r.files} 个文件），可在技能库页签查看并下发`, "ok");
+    toast(`已导入 ${r.name}（${r.files} 个文件），已登记进技能库（尚未下发到任何平台）`, "ok");
     await refresh();
   } catch (e) { toast(e.message, "err"); btn.disabled = false; }
 };
