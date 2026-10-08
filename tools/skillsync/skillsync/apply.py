@@ -16,6 +16,14 @@ from . import undo as undo_mod
 from .store import audit, load_catalog, load_state, save_state
 
 
+def _is_within(child: Path, base: Path) -> bool:
+    """判断 child 解析后是否仍在 base 目录内，防止路径穿越。"""
+    try:
+        return child.resolve().is_relative_to(base.resolve())
+    except (OSError, ValueError):
+        return False
+
+
 @dataclass
 class Action:
     platform: str
@@ -35,6 +43,10 @@ def _plan(platform_filter: set[str] | None, only: str | None,
         if platform_filter:
             targets &= platform_filter
         canonical = SKILLS_DIR / slug
+        if not _is_within(canonical, SKILLS_DIR):
+            for p in targets:
+                actions.append(Action(p, slug, "refused", f"slug 解析后跳出 skills/ 边界：{slug}"))
+            continue
         if not (canonical / SKILL_MD).is_file():
             for p in targets:
                 actions.append(Action(p, slug, "refused", "canonical 目录缺少 SKILL.md，跳过"))
