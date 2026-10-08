@@ -4,6 +4,7 @@
   doctor    只读对账，报告分叉/未登记/失效软链
   adopt     把某个平台技能复制进共享仓并登记
   migrate   批量采纳某平台的全部未登记技能
+  reconcile 把 skills/ 下未登记的技能批量补写进 catalog（手工放进 canonical 的）
   apply     按 catalog 把 canonical 软链下发到各平台（默认 dry-run）
   verify    canonical 仓自检
   serve     本机 Web 控制台（下一阶段提供）
@@ -23,6 +24,7 @@ from . import bootstrap as bootstrap_mod
 from . import doctor as doctor_mod
 from . import gitsync as gitsync_mod
 from . import resolve as resolve_mod
+from . import undo as undo_mod
 from . import verify as verify_mod
 from .adopt import AdoptError
 from .core import PLATFORMS
@@ -107,6 +109,75 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     return 0 if fail == 0 else 1
 
 
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    """对账补登记：把 skills/ 下未登记到 catalog 的技能补写一条记录。
+
+    适用场景：技能是手工放进 canonical 目录的，没走过 adopt 流程，
+    导致 doctor / Web 控制台看不到它们。本命令只补 catalog 元数据，
+    不复制文件、不动软链。
+    """
+    from datetime import datetime, timezone
+    from .core import SKILLS_DIR, parse_frontmatter
+    from .store import load_catalog, save_catalog
+    from .core import CATALOG_PATH
+
+    catalog = load_catalog()
+    registered = set((catalog.get("skills") or {}).keys())
+    targets_default = sorted(PLATFORMS)
+    plan: list[tuple[str, list[str]]] = []  # (slug, platforms)
+    skipped: list[tuple[str, str]] = []
+
+    for d in sorted(SKILLS_DIR.iterdir()):
+        if not d.is_dir() or d.name in {"__pycache__", ".git"}:
+            continue
+        if d.name in registered:
+            continue
+        fm, err = parse_frontmatter(d)
+        if fm is None:
+            skipped.append((d.name, f"frontmatter 不合规：{err}"))
+            continue
+        # frontmatter 的 platforms 字段是逗号分隔字符串；过滤未知平台
+        raw_plats = fm.get("platforms")
+        if isinstance(raw_plats, str) and raw_plats.strip():
+            plats = [p.strip() for p in raw_plats.split(",") if p.strip()]
+            plats = [p for p in plats if p in PLATFORMS]
+        else:
+            plats = []
+        if not plats:
+            plats = list(targets_default)
+        plan.append((d.name, plats))
+
+    if not plan and not skipped:
+        print("catalog 与 skills/ 一致，无需补登记。")
+        return 0
+
+    print(f"== reconcile：{len(plan)} 个待补登记，{len(skipped)} 个跳过 ==")
+    for slug, plats in plan:
+        print(f"  [补登记] {slug} -> platforms={plats}")
+    for slug, why in skipped:
+        print(f"  [跳过] {slug}：{why}")
+
+    if args.dry_run:
+        print("--dry-run 模式：未写盘。去掉 --dry-run 实际执行。")
+        return 0
+
+    now = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    for slug, plats in plan:
+        catalog["skills"][slug] = {
+            "source_platform": "manual",
+            "platforms": plats,
+            "tools_required": [],
+            "depends_on": [],
+            "description_zh": "",
+            "adopted_at": now,
+        }
+    save_catalog(catalog)
+    audit("reconcile", slugs=",".join(s for s, _ in plan))
+    print(f"已写入 {CATALOG_PATH.name}，补登记 {len(plan)} 个，跳过 {len(skipped)} 个。")
+    print("提示：这些技能的 source_platform 标记为 'manual'（手工放进 canonical，非来自平台 adopt）。")
+    return 1 if skipped else 0
+
+
 def cmd_apply(args: argparse.Namespace) -> int:
     actions = apply_mod.run(
         write=args.write,
@@ -156,6 +227,9 @@ def cmd_ignore(args: argparse.Namespace) -> int:
     state = load_state()
     key = f"{args.platform}/{args.name}"
     ignored = set(state.get("ignored", []))
+    add = not args.remove
+    tx = undo_mod.Tx("ignore", args.name)
+    tx.state_ignored(key, add)  # 撤销 = 反向恢复
     if args.remove:
         ignored.discard(key)
         print(f"已移出忽略名单：{key}")
@@ -164,7 +238,9 @@ def cmd_ignore(args: argparse.Namespace) -> int:
         print(f"已加入忽略名单：{key}（doctor 不再报告；可用 --remove 恢复）")
     state["ignored"] = sorted(ignored)
     save_state(state)
-    audit("ignore", slug=args.name, platform=args.platform, remove=bool(args.remove))
+    audit("ignore", slug=args.name, platform=args.platform, remove=bool(args.remove),
+          undo=tx.id)
+    tx.commit(f"{'忽略' if add else '取消忽略'} {key}")
     return 0
 
 
@@ -292,6 +368,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--all", action="store_true", required=True, help="确认批量执行")
     p.add_argument("--link", action="store_true")
     p.set_defaults(func=cmd_migrate)
+
+    p = sub.add_parser(
+        "reconcile",
+        help="把 skills/ 下未登记的技能补写进 catalog（仅元数据，不动文件/软链）")
+    p.add_argument("--dry-run", action="store_true", help="只预演，不写盘")
+    p.set_defaults(func=cmd_reconcile)
 
     p = sub.add_parser("apply", help="软链下发到各平台（默认 dry-run）")
     p.add_argument("--write", action="store_true", help="真正落盘")
