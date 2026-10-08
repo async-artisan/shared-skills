@@ -10,8 +10,10 @@ from .core import (
     SKILL_MD,
     SKILLS_DIR,
     SkillEntry,
+    extract_description,
     frontmatter_issue,
     hash_skill,
+    read_text_cached,
     scan_platform,
 )
 from .store import load_catalog, load_state
@@ -69,6 +71,7 @@ def scan_all() -> dict[str, Any]:
     findings: list[Finding] = []
     loose_files: dict[str, list[str]] = {}
     builtin_counts: dict[str, int] = {}
+    platform_descriptions: dict[str, str] = {}  # 键 "platform/name" → description
 
     for key, platform in PLATFORMS.items():
         entries, loose = scan_platform(platform)
@@ -88,11 +91,24 @@ def scan_all() -> dict[str, Any]:
         seen_names: set[str] = set()
         for e in entries:
             seen_names.add(e.name)
-            findings.append(_classify(e, catalog_skills, canonical_by_name, canonical_by_hash, ignored))
-            # 元数据体检：坏 frontmatter 影响简介展示与检索，作为独立问题上报
-            issue = frontmatter_issue(e.path)
-            if issue:
-                findings.append(Finding(e.platform, e.name, "bad-frontmatter", issue, str(e.path)))
+            # 顺带提取 description，避免 webapp 再扫一遍
+            md = e.path / SKILL_MD
+            if md.is_file():
+                try:
+                    desc = extract_description(read_text_cached(md))
+                    if desc:
+                        platform_descriptions[f"{key}/{e.name}"] = desc
+                except OSError:
+                    pass
+            finding = _classify(e, catalog_skills, canonical_by_name, canonical_by_hash, ignored)
+            findings.append(finding)
+            # 元数据体检：坏 frontmatter 影响简介展示与检索，作为独立问题上报。
+            # managed 软链穿透读到 canonical 本体，其元数据问题已在下方 canonical 侧
+            # 统一报告，此处跳过避免同一问题重复 N 次（N = 下发平台数）。
+            if finding.status != "managed-ok":
+                issue = frontmatter_issue(e.path)
+                if issue:
+                    findings.append(Finding(e.platform, e.name, "bad-frontmatter", issue, str(e.path)))
 
         # catalog 声明分发到该平台、但目录里完全没有
         for slug, meta in catalog_skills.items():
@@ -138,6 +154,7 @@ def scan_all() -> dict[str, Any]:
         "findings": [asdict(f) for f in findings],
         "archived_n": len(findings) - len(active),
         "summary": summary,
+        "platform_descriptions": platform_descriptions,
     }
 
 

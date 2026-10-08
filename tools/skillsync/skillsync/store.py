@@ -25,7 +25,10 @@ def _load_yaml(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 def _save_yaml(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yamllite.dump(data), encoding="utf-8")
+    # 原子写入：先写临时文件再 rename，避免写一半崩溃损坏唯一事实源
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(yamllite.dump(data), encoding="utf-8")
+    tmp.replace(path)
 
 
 def load_catalog() -> dict[str, Any]:

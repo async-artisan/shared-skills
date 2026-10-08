@@ -26,6 +26,7 @@ class BootstrapResult:
     applied_n: int
     refused_n: int
     skip_apply: bool
+    dry_run: bool = False
     adoptable: list[dict[str, Any]] = field(default_factory=list)
     problem_n: int = 0
 
@@ -53,6 +54,7 @@ def run(dry_run: bool = False, skip_apply: bool = False) -> BootstrapResult:
         applied_n=applied,
         refused_n=refused,
         skip_apply=skip_apply,
+        dry_run=dry_run,
         adoptable=adoptable,
         problem_n=problem_n,
     )
@@ -68,15 +70,15 @@ def format_text(r: BootstrapResult) -> str:
     lines.append("")
 
     if r.apply_actions:
-        lines.append(f"软链下发：{r.applied_n} 项已创建/更新"
-                     + ("（dry-run，未实际落盘）" if r.refused_n == 0 and not r.apply_actions else "")
-                     + (f"，{r.refused_n} 项被安全规则拒绝" if r.refused_n else ""))
+        lines.append(f"软链下发：{r.applied_n} 项{'预演' if r.dry_run else '已创建/更新'}"
+                     + (f"，{r.refused_n} 项被安全规则拒绝" if r.refused_n else "")
+                     + ("（dry-run，未实际落盘）" if r.dry_run else ""))
         for a in r.apply_actions:
             if a.kind == "ok":
                 continue
             lines.append(f"  [{a.platform}] {a.slug} {a.kind} — {a.detail}")
         lines.append("")
-    elif r.skip_apply:  # type: ignore[attr-defined]
+    elif r.skip_apply:
         lines.append("已跳过软链下发（--no-apply）。")
         lines.append("")
     else:

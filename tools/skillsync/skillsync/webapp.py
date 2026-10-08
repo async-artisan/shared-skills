@@ -599,12 +599,46 @@ def _read_audit(limit: int = 300) -> list[dict[str, Any]]:
     return out[: max(1, limit)]
 
 
+# 进程内写锁：ThreadingHTTPServer 下并发请求可能交叉执行 load→改→save，
+# 导致 catalog/state 丢更新。所有 POST 写动作串行化，避免竞态。
+_write_lock = threading.Lock()
+
+# POST body 大小上限（1MB），防止恶意大请求耗尽内存
+_MAX_POST_BODY = 1 * 1024 * 1024
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "skillsync/0.1"
 
     # 静默默认访问日志；动作审计在业务层落 audit.logl
     def log_message(self, fmt: str, *args: Any) -> None:
         return
+
+    # 安全校验：阻断 CSRF 和 DNS-rebinding
+    _LOOPBACK_HOSTS = frozenset({
+        "127.0.0.1", "localhost", "::1",
+        "[::1]",  # IPv6 带方括号的形式
+    })
+
+    def _check_local_origin(self) -> None:
+        """POST 写操作必须来自本机回环，阻断跨站请求和 DNS-rebinding。"""
+        # 1. Origin 头校验（现代浏览器对所有 POST 都会发此头）
+        origin = self.headers.get("Origin")
+        if origin:
+            try:
+                o = urlparse(origin)
+                if o.hostname not in self._LOOPBACK_HOSTS:
+                    raise ApiError(f"拒绝跨站请求：Origin 不是本机回环", 403)
+            except ApiError:
+                raise
+            except Exception:
+                raise ApiError("Origin 头格式不合规", 403)
+        # 2. Host 头校验（防 DNS-rebinding：攻击者把恶意域名 DNS 解析到 127.0.0.1）
+        host = self.headers.get("Host", "")
+        # 去端口号
+        host_name = host.split(":")[0].lower() if host else ""
+        if host_name and host_name not in self._LOOPBACK_HOSTS:
+            raise ApiError(f"拒绝非本机 Host：{host}", 403)
 
     def _send_json(self, payload: Any, status: int = 200) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -642,7 +676,7 @@ class Handler(BaseHTTPRequestHandler):
                 result["problem_total"] = sum(
                     result["summary"].get(k, 0) for k in PROBLEM_STATUSES)
                 result["descriptions"] = _canonical_descriptions()
-                result["platform_descriptions"] = _platform_descriptions()
+                # platform_descriptions 已在 scan_all 中提取，无需再扫一遍
                 from .store import load_catalog
                 result["archived"] = sorted(
                     slug for slug, m in load_catalog().get("skills", {}).items()
@@ -691,7 +725,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         try:
+            # 安全校验：阻断 CSRF 和 DNS-rebinding
+            self._check_local_origin()
             length = int(self.headers.get("Content-Length") or 0)
+            if length > _MAX_POST_BODY:
+                self._send_json({"ok": False, "error": f"请求体过大（{length} > {_MAX_POST_BODY}）"}, 413)
+                return
             raw = self.rfile.read(length) if length else b"{}"
             body = json.loads(raw.decode("utf-8") or "{}")
             routes = {
@@ -709,7 +748,9 @@ class Handler(BaseHTTPRequestHandler):
             if handler is None:
                 self._send_json({"ok": False, "error": "not found"}, 404)
                 return
-            self._send_json(handler(body))
+            # 写操作串行化：避免并发请求下 catalog/state load→改→save 竞态丢更新
+            with _write_lock:
+                self._send_json(handler(body))
         except (ApiError, AdoptError, ResolveError) as exc:
             status = exc.status if isinstance(exc, ApiError) else 400
             self._send_json({"ok": False, "error": str(exc)}, status)

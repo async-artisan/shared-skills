@@ -94,6 +94,7 @@ def _allowed_root(path: Path) -> bool:
 
 
 def _rm_tree(path: Path) -> None:
+    # 幂等：已不存在视为成功（撤销重试场景下目标可能已被清理）
     if path.is_symlink() or path.is_file():
         path.unlink()
     elif path.is_dir():
@@ -116,11 +117,15 @@ def _apply_op(op: dict[str, Any]) -> str:
         if t.is_symlink():
             t.unlink()
             return f"已移除软链 {op['path']}"
+        if not t.exists():
+            return f"目标已不存在，跳过 {op['path']}"
         return "目标不是软链，跳过"
     if kind == "restore_link":
         t = Path(op["path"])
         if t.is_symlink():
             t.unlink()
+        elif t.exists() and not t.is_symlink():
+            return f"目标已是非软链文件，跳过 {op['path']}"
         prev = op.get("prev")
         if prev:
             os.symlink(prev, t)
@@ -152,10 +157,12 @@ def _apply_op(op: dict[str, Any]) -> str:
     if kind == "state_ignored":
         state = load_state()
         ignored = set(state.get("ignored", []))
-        (ignored.add if op["add"] else ignored.discard)(op["key"])
+        # 撤销 = 反向操作：写入时 add=True（加入忽略），撤销时 discard（移除）
+        reverse_add = not op["add"]
+        (ignored.add if reverse_add else ignored.discard)(op["key"])
         state["ignored"] = sorted(ignored)
         save_state(state)
-        return f"ignored 状态 {op['key']} 已{'恢复' if op['add'] else '移除'}"
+        return f"ignored 状态 {op['key']} 已{'恢复' if reverse_add else '移除'}"
     raise UndoError(f"未知撤销指令：{kind}")
 
 
@@ -166,7 +173,28 @@ def execute(uid: str) -> dict[str, Any]:
     rec = json.loads(path.read_text(encoding="utf-8"))
     if rec.get("executed"):
         raise UndoError("该操作已撤销过，不能重复撤销")
-    results = [_apply_op(op) for op in reversed(rec["ops"])]
+    # 逐 op 执行：失败的 op 记录错误后继续，最后标记 partial 并落盘，
+    # 避免中途崩溃留下半成品且不可重试。
+    results: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for op in reversed(rec["ops"]):
+        try:
+            msg = _apply_op(op)
+            results.append({"op": op["op"], "result": msg})
+        except UndoError as exc:
+            errors.append(f"{op['op']}: {exc}")
+            results.append({"op": op["op"], "error": str(exc)})
+        except OSError as exc:
+            errors.append(f"{op['op']}: {exc}")
+            results.append({"op": op["op"], "error": str(exc)})
+    if errors:
+        rec["executed"] = False
+        rec["partial"] = True
+        rec["partial_at"] = _now()
+        rec["partial_errors"] = errors
+        path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
+        raise UndoError(f"撤销部分失败（{len(errors)} 步），已完成 {len(results) - len(errors)} 步；"
+                        f"可重试 undo {uid}，已执行的幂等步骤会自动跳过")
     rec["executed"] = True
     rec["executed_at"] = _now()
     path.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")

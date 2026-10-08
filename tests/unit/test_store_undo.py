@@ -190,12 +190,15 @@ class TestUndo(unittest.TestCase):
         tx = undo_mod.Tx("ignore", "alpha")
         tx.state_ignored("codex/alpha", add=True)
         uid = tx.commit("忽略 alpha")
+        # 模拟实际写操作：把 codex/alpha 加入 ignored
         state = load_state()
-        state["ignored"] = ["other/thing"]
+        state["ignored"] = ["codex/alpha", "other/thing"]
         save_state(state)
         undo_mod.execute(uid)
         restored = load_state()
-        self.assertIn("codex/alpha", restored["ignored"])
+        # 撤销 = 反向：add=True 的反向是 discard（移除）
+        self.assertNotIn("codex/alpha", restored["ignored"])
+        self.assertIn("other/thing", restored["ignored"])
 
 
 def tearDownModule():

@@ -67,32 +67,38 @@ def resolve(platform_key: str, slug: str, winner: str, dry_run: bool = False) ->
 
     target.parent.mkdir(parents=True, exist_ok=True)
     tx = undo_mod.Tx("resolve", slug)
-    if winner == "canonical":
-        backup = target.with_name(target.name + ".bak-" + _stamp())
-        tx.unbak(backup, target)  # 撤销 = 删软链 + 平台实体目录改回原名
-        target.rename(backup)
-        os.symlink(canonical, target)
-        detail = f"平台目录已备份为 {backup.name}，原位换成软链（canonical 胜出）"
-    else:
-        canonical_backup = canonical.with_name(canonical.name + ".canonical.bak-" + _stamp())
-        # 撤销只需一条 restore_bak_dir（内部先清目标再改回原名），勿叠加 rm_tree
-        tx.restore_bak_dir(canonical_backup, canonical)
-        shutil.copytree(canonical, canonical_backup)
-        # 用平台内容重建 canonical
-        shutil.rmtree(canonical)
-        shutil.copytree(target, canonical, ignore=shutil.ignore_patterns(".DS_Store", "__pycache__"))
-        fm, err = parse_frontmatter(canonical)
-        if fm is None or str((fm or {}).get("name") or "").strip() != slug:
-            raise ResolveError(
-                f"平台副本 frontmatter 不合规（{err or 'name 不匹配'}），"
-                f"已保留旧 canonical 备份 {canonical_backup.name}，请人工处理"
-            )
-        backup = target.with_name(target.name + ".bak-" + _stamp())
-        tx.unbak(backup, target)
-        target.rename(backup)
-        os.symlink(canonical, target)
-        detail = (f"canonical 旧版备份为 {canonical_backup.name}，"
-                  f"已采用平台内容；平台目录备份为 {backup.name} 并换成软链")
+    try:
+        if winner == "canonical":
+            backup = target.with_name(target.name + ".bak-" + _stamp())
+            tx.unbak(backup, target)  # 撤销 = 删软链 + 平台实体目录改回原名
+            target.rename(backup)
+            os.symlink(canonical, target)
+            detail = f"平台目录已备份为 {backup.name}，原位换成软链（canonical 胜出）"
+        else:
+            # 校验平台副本 frontmatter，提前到破坏性操作之前
+            fm, err = parse_frontmatter(target)
+            if fm is None or str((fm or {}).get("name") or "").strip() != slug:
+                raise ResolveError(
+                    f"平台副本 frontmatter 不合规（{err or 'name 不匹配'}），"
+                    f"请人工处理后再裁决"
+                )
+            canonical_backup = canonical.with_name(canonical.name + ".canonical.bak-" + _stamp())
+            # 撤销只需一条 restore_bak_dir（内部先清目标再改回原名），勿叠加 rm_tree
+            tx.restore_bak_dir(canonical_backup, canonical)
+            shutil.copytree(canonical, canonical_backup)
+            # 用平台内容重建 canonical
+            shutil.rmtree(canonical)
+            shutil.copytree(target, canonical, ignore=shutil.ignore_patterns(".DS_Store", "__pycache__"))
+            backup = target.with_name(target.name + ".bak-" + _stamp())
+            tx.unbak(backup, target)
+            target.rename(backup)
+            os.symlink(canonical, target)
+            detail = (f"canonical 旧版备份为 {canonical_backup.name}，"
+                      f"已采用平台内容；平台目录备份为 {backup.name} 并换成软链")
+    except Exception:
+        # 中途失败：立即 commit Tx 确保可撤销，而非丢弃记录留下半成品
+        tx.commit(f"resolve 失败回滚点：{slug}（部分落盘，可通过 undo 恢复）")
+        raise
 
     audit("resolve", slug=slug, platform=platform_key, winner=winner,
           detail=detail, undo=tx.id)
