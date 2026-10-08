@@ -14,6 +14,7 @@ import difflib
 import hashlib
 import io
 import json
+import os
 import re
 import threading
 from dataclasses import asdict
@@ -44,7 +45,7 @@ from .core import (
     scan_platform,
 )
 from .doctor import PROBLEM_STATUSES, scan_all
-from .store import load_state, save_state, audit
+from .store import audit, load_catalog, load_state, save_state
 from .adopt import AdoptError
 from .resolve import ResolveError
 
@@ -53,9 +54,17 @@ INDEX_HTML = WEB_DIR / "index.html"
 
 
 class ApiError(Exception):
-    def __init__(self, message: str, status: int = 400):
+    def __init__(self, message: str, status: int = 400, code: str = ""):
         super().__init__(message)
         self.status = status
+        self.code = code  # 机器可读标识，供前端区分失败类型（如能力缺失）
+
+
+def _error_payload(exc: ApiError) -> dict[str, Any]:
+    payload: dict[str, Any] = {"ok": False, "error": str(exc)}
+    if exc.code:
+        payload["code"] = exc.code
+    return payload
 
 
 def _platforms_payload() -> dict[str, Any]:
@@ -235,7 +244,8 @@ def _translate_markdown(text: str) -> str:
         import argostranslate.translate as argos_tr
     except ImportError as exc:
         raise ApiError(
-            "翻译引擎未安装：python3 -m pip install argostranslate", 503) from exc
+            "翻译引擎未安装：python3 -m pip install argostranslate", 503,
+            code="no-translate-engine") from exc
     # 强制纯 Python 分句器，避免 stanza 模型去 huggingface 联网下载
     argos_settings.chunk_type = argos_settings.ChunkType.MINISBD
 
@@ -248,7 +258,8 @@ def _translate_markdown(text: str) -> str:
             if en is None or zh is None:
                 raise ApiError(
                     "缺少 en→zh 离线语言包："
-                    "python3 -m argos install en zh（或用 argostranslate 下载）", 503)
+                    "python3 -m argos install en zh（或用 argostranslate 下载）", 503,
+                    code="no-translate-engine")
             translation = en.get_translation(zh)
             _TRANSLATION_CACHE["en->zh"] = translation
 
@@ -349,31 +360,41 @@ def _do_translate(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _scan_signature() -> str:
-    """技能目录变化签名：canonical 与各平台目录两层 mtime 的哈希。
+    """技能目录变化签名：canonical 与各平台目录下每个条目的 mtime_ns/size 哈希。
 
-    能捕获新增/删除/改名与一级子项改动；内容深层编辑交给 doctor 对账。
+    递归收集目录与文件（不跟随目录软链），因此改 SKILL.md、references/ 等
+    任意层级文件的内容都会改变签名；平台侧的软链技能由 canonical 侧覆盖。
     """
     parts: list[str] = []
 
-    def stat_entry(p: Path, depth: int) -> None:
+    def collect(root: Path) -> None:
         try:
-            parts.append(f"{p}:{int(p.stat().st_mtime * 1000)}")
+            st = root.stat()
         except OSError:
             return
-        if depth <= 0:
-            return
-        try:
-            children = sorted(p.iterdir())
-        except OSError:
-            return
-        for c in children:
-            if c.name in IGNORE_DIRS or c.name.startswith("."):
+        parts.append(f"{root}:{st.st_mtime_ns}:{st.st_size}")
+        stack = [root]
+        while stack:
+            current = stack.pop()
+            try:
+                with os.scandir(current) as it:
+                    entries = sorted(it, key=lambda e: e.name)
+            except OSError:
                 continue
-            stat_entry(c, depth - 1)
+            for entry in entries:
+                if entry.name in IGNORE_DIRS or entry.name.startswith("."):
+                    continue
+                try:
+                    est = entry.stat(follow_symlinks=False)
+                except OSError:
+                    continue
+                parts.append(f"{entry.path}:{est.st_mtime_ns}:{est.st_size}")
+                if entry.is_dir(follow_symlinks=False):
+                    stack.append(Path(entry.path))
 
-    stat_entry(SKILLS_DIR, 1)
+    collect(SKILLS_DIR)
     for key in sorted(PLATFORMS):
-        stat_entry(PLATFORMS[key].skills_dir, 1)
+        collect(PLATFORMS[key].skills_dir)
     return hashlib.sha1("\n".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
@@ -677,10 +698,11 @@ class Handler(BaseHTTPRequestHandler):
                     result["summary"].get(k, 0) for k in PROBLEM_STATUSES)
                 result["descriptions"] = _canonical_descriptions()
                 # platform_descriptions 已在 scan_all 中提取，无需再扫一遍
-                from .store import load_catalog
+                catalog_skills = load_catalog().get("skills", {})
                 result["archived"] = sorted(
-                    slug for slug, m in load_catalog().get("skills", {}).items()
-                    if m.get("archived"))
+                    slug for slug, m in catalog_skills.items() if m.get("archived"))
+                # catalog 账本清单：技能库据此列出「已登记但未下发」的技能
+                result["catalog_slugs"] = sorted(catalog_skills)
                 self._send_json(result)
                 return
             if parsed.path == "/api/diff":
@@ -718,7 +740,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._send_json({"ok": False, "error": "not found"}, 404)
         except ApiError as exc:
-            self._send_json({"ok": False, "error": str(exc)}, exc.status)
+            self._send_json(_error_payload(exc), exc.status)
         except Exception as exc:  # 单用户本机工具：完整错误回传便于排障
             self._send_json({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, 500)
 
@@ -752,8 +774,10 @@ class Handler(BaseHTTPRequestHandler):
             with _write_lock:
                 self._send_json(handler(body))
         except (ApiError, AdoptError, ResolveError) as exc:
-            status = exc.status if isinstance(exc, ApiError) else 400
-            self._send_json({"ok": False, "error": str(exc)}, status)
+            if isinstance(exc, ApiError):
+                self._send_json(_error_payload(exc), exc.status)
+            else:
+                self._send_json({"ok": False, "error": str(exc)}, 400)
         except json.JSONDecodeError:
             self._send_json({"ok": False, "error": "请求体不是合法 JSON"}, 400)
         except Exception as exc:
