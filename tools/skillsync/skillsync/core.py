@@ -18,6 +18,7 @@ REPO_ROOT = Path(os.environ.get("SKILLSYNC_HOME", str(_PKG_REPO_ROOT))).resolve(
 SKILLS_DIR = REPO_ROOT / "skills"
 REGISTRY_DIR = REPO_ROOT / "registry"
 CATALOG_PATH = REGISTRY_DIR / "catalog.yaml"
+CATALOG_EXAMPLE_PATH = REGISTRY_DIR / "catalog.example.yaml"
 STATE_PATH = REGISTRY_DIR / "state.yaml"
 AUDIT_PATH = REGISTRY_DIR / "audit.logl"
 

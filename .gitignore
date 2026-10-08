@@ -13,7 +13,11 @@ __pycache__/
 # 本机状态（忽略名单、最近 apply；机器相关，不跨机器同步）
 registry/state.yaml
 
-# 多机 git 共享流：以下均为机器本地留痕/缓存，只同步事实源 skills/ 与 catalog.yaml
+# 个人技能台账（私有数据，不随公开仓分发；首次运行从 catalog.example.yaml 自动初始化）
+registry/catalog.yaml
+registry/catalog.yaml.pre-pull-*
+
+# 机器本地留痕/缓存
 registry/audit.logl
 registry/undo/
 registry/translate-cache.json

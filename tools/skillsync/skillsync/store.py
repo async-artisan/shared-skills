@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from . import yamllite
-from .core import AUDIT_PATH, CATALOG_PATH, REGISTRY_DIR, STATE_PATH
+from .core import AUDIT_PATH, CATALOG_EXAMPLE_PATH, CATALOG_PATH, REGISTRY_DIR, STATE_PATH
 
 
 def _now_iso() -> str:
@@ -31,7 +32,21 @@ def _save_yaml(path: Path, data: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def ensure_catalog() -> None:
+    """catalog.yaml 缺失时从 catalog.example.yaml 复制初始化。
+
+    catalog.yaml 是私有数据（被 .gitignore 排除），新机器 clone 公开仓后首次
+    运行命令时自动得到一份空台账模板；example 也不存在时保持无文件状态，
+    load_catalog 会回退到内存空结构。
+    """
+    if CATALOG_PATH.exists() or not CATALOG_EXAMPLE_PATH.exists():
+        return
+    REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(CATALOG_EXAMPLE_PATH, CATALOG_PATH)
+
+
 def load_catalog() -> dict[str, Any]:
+    ensure_catalog()
     data = _load_yaml(CATALOG_PATH, {"version": 1, "skills": {}})
     data.setdefault("version", 1)
     data.setdefault("skills", {})

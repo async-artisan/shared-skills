@@ -8,7 +8,8 @@
   apply     按 catalog 把 canonical 软链下发到各平台（默认 dry-run）
   verify    canonical 仓自检
   serve     本机 Web 控制台（下一阶段提供）
-  sync-status / push / pull  多机 git 共享流（只同步 skills/ 与 catalog.yaml 等事实源）
+  sync-status / push / pull  多机 git 共享流（公开仓只同步工具骨架；skills/ 与
+                             catalog.yaml 是私有数据，跨机同步需自建私有远端）
 """
 from __future__ import annotations
 

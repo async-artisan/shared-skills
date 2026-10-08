@@ -30,7 +30,7 @@ git clone https://github.com/async-artisan/shared-skills.git
 cd shared-skills
 ```
 
-要求：Python 3.10+、macOS 或 Linux（软链需文件系统支持）。
+要求：Python 3.10+、macOS 或 Linux（软链需文件系统支持）。首次运行任意 `skillsync` 命令时，会自动把 `registry/catalog.example.yaml` 复制为本机私有的 `registry/catalog.yaml` 空台账。
 
 可选：把启动包装放进 PATH，便于在任意目录调用 `skillsync`：
 
@@ -138,7 +138,7 @@ apply 预演/执行（二次确认）、操作历史与撤销、技能库只读�
 
 ### 多机 git 共享流
 
-shared-skills 的所有事实源（`skills/` + `registry/catalog.yaml` + 仓骨架）通过 git 同步；机器本地数据（state/audit/undo/translate-cache）不跨机。
+公开仓（本仓库）只通过 git 同步**工具代码与仓骨架**；`skills/` 个人技能库和 `registry/catalog.yaml` 个人台账是私有数据，被 `.gitignore` 排除，不会随 `push` 进入公开远端。机器本地数据（state/audit/undo/translate-cache）同样不跨机。
 
 ```bash
 bin/skillsync sync-status          # fetch 后看 ahead/behind、变更分类、可执行结论
@@ -146,14 +146,17 @@ bin/skillsync push                # 预检 + 自动中文提交说明 + 推送�
 bin/skillsync pull                # --ff-only；分叉需显式 --rebase；拉取后自动 doctor 对账
 ```
 
-`push` 预检拒绝以下场景（exit 2，不做任何写操作）：未配置远端、落后远端、未合并冲突、`.bak-*` 残留、catalog 声明但 `skills/` 缺目录。`pull` 受跟踪文件脏改时拒绝。无 force/reset。
+**跨机同步私有技能库**：在多台个人电脑之间同步 `skills/` 与 catalog，请自建私有远端（私有 fork 或额外 remote），在该私有仓的 `.gitignore` 中放开对应路径，再用同一组 `push` / `pull` 命令。公开远端与私有远端互不影响。
+
+`push` 预检拒绝以下场景（exit 2，不做任何写操作）：未配置远端、落后远端、未合并冲突、`.bak-*` 残留、catalog 声明但 `skills/` 缺目录。`pull` 受跟踪文件脏改时拒绝。无 force/reset。老版本拉取「catalog 私有化」迁移提交时，`pull` 会先把本机台账备份为 `registry/catalog.yaml.pre-pull-<时间戳>`，合并后自动还原。
 
 ## 项目目录
 
 ```text
-skills/            canonical 技能（唯一事实源）
+skills/            canonical 个人技能库（私有，不随公开仓分发）
 registry/
-  catalog.yaml     技能台账：platforms / tools_required / depends_on / description_zh
+  catalog.example.yaml  台账模板（入库；首次运行自动复制为 catalog.yaml）
+  catalog.yaml     个人技能台账（私有，不入库）
   state.yaml       本机状态：忽略名单、最近 apply（不入库）
   audit.logl       操作审计 JSON Lines（不入库）
   undo/            撤销事务记录（不入库）

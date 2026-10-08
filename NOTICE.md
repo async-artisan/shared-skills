@@ -19,7 +19,7 @@
 以下内容属于使用者私有，**MIT 许可不及于它们，不授予任何权利**：
 
 - `skills/` — canonical 技能实体（每个 `skills/<slug>/SKILL.md` 及配套文件），被 `.gitignore` 排除，不随仓库分发
-- `registry/catalog.yaml` — 个人技能台账（仅含 slug、平台清单、时间戳等元数据，不含技能内容）；随仓库提交仅用于使用者个人多机同步，他人 clone 后应替换为自己的台账
+- `registry/catalog.yaml` — 个人技能台账（slug、平台清单、采纳时间等），被 `.gitignore` 排除，不随仓库分发；首次运行时从随仓的 `registry/catalog.example.yaml` 自动复制初始化
 - `registry/state.yaml`、`registry/audit.logl`、`registry/undo/`、`registry/translate-cache.json` — 本机状态、留痕与缓存，不入库
 
 若你从其他渠道（如 ClawHub、各平台市场）获得技能内容，其使用须遵循对应来源的许可条款，与本仓库无关。

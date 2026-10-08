@@ -1,0 +1,25 @@
+# catalog 示例台账。
+#
+# catalog.yaml 是使用者的私有数据（记录你采纳了哪些技能、下发到哪些平台），
+# 被 .gitignore 排除，不随公开仓分发。
+#
+# 首次运行 skillsync 命令时，如果 registry/catalog.yaml 不存在，本文件会被
+# 自动复制为 catalog.yaml 作为起点；之后由 doctor/adopt/migrate/reconcile 等
+# 命令自动维护，一般无需手改。
+#
+# 单个技能条目示例（复制后去掉行首 #）：
+#
+# skills:
+#   my-skill:
+#     source_platform: manual       # 采纳来源：codex/claude/workbuddy/trae/manual
+#     platforms:                    # 已软链下发的平台清单
+#       - codex
+#       - trae
+#     tools_required: []            # 预留：依赖的外部工具
+#     depends_on: []                # 预留：依赖的其他技能 slug
+#     description_zh: "中文简介"
+#     adopted_at: "2026-01-01T00:00:00+08:00"
+#     archived: false               # true 表示归档，doctor 只提示不催办
+
+version: 1
+skills: {}

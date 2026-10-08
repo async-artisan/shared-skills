@@ -15,10 +15,10 @@ sys.path.insert(0, str(TOOLS))
 # 在首次 import 时就锁定到隔离临时目录，避免污染真实仓
 from skillsync import core as core_mod  # noqa: E402
 from skillsync.core import (  # noqa: E402
-    AUDIT_PATH, CATALOG_PATH, REGISTRY_DIR, SKILLS_DIR, STATE_PATH,
+    AUDIT_PATH, CATALOG_EXAMPLE_PATH, CATALOG_PATH, REGISTRY_DIR, SKILLS_DIR, STATE_PATH,
 )
 from skillsync.store import (  # noqa: E402
-    audit, load_catalog, load_state, save_catalog, save_state,
+    audit, ensure_catalog, load_catalog, load_state, save_catalog, save_state,
 )
 from skillsync import undo as undo_mod  # noqa: E402
 
@@ -74,6 +74,36 @@ class TestStore(unittest.TestCase):
         }
         save_state(state)
         self.assertEqual(load_state(), state)
+
+
+class TestEnsureCatalog(unittest.TestCase):
+    """catalog.yaml 缺失时从 catalog.example.yaml 自动初始化。"""
+
+    def setUp(self):
+        REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
+        for p in (CATALOG_PATH, CATALOG_EXAMPLE_PATH):
+            if p.exists():
+                p.unlink()
+
+    def test_creates_from_example(self):
+        CATALOG_EXAMPLE_PATH.write_text("version: 1\nskills: {}\n", encoding="utf-8")
+        ensure_catalog()
+        self.assertTrue(CATALOG_PATH.exists())
+        self.assertEqual(load_catalog()["skills"], {})
+
+    def test_existing_catalog_not_overwritten(self):
+        CATALOG_EXAMPLE_PATH.write_text("version: 1\nskills: {}\n", encoding="utf-8")
+        save_catalog({"version": 1, "skills": {"keep-me": {"source_platform": "manual"}}})
+        ensure_catalog()
+        self.assertIn("keep-me", load_catalog()["skills"])
+
+    def test_missing_example_is_noop(self):
+        # example 也不存在时不报错；load_catalog 回退到内存空结构
+        ensure_catalog()
+        self.assertFalse(CATALOG_PATH.exists())
+        self.assertEqual(load_catalog()["skills"], {})
+        # load_catalog 触发回退后仍不应凭空写文件（保持无文件状态）
+        self.assertFalse(CATALOG_PATH.exists())
 
 
 class TestAudit(unittest.TestCase):
