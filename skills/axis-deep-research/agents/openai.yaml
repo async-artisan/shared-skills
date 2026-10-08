@@ -1,4 +1,0 @@
-interface:
-  display_name: "横纵分析研究"
-  short_description: "用历史演化与横向比较研究陌生对象"
-  default_prompt: "请使用 $axis-deep-research 对这个对象做一份可追溯的横纵分析：对象是【填写对象】，我想支持的决定是【填写决定】。"

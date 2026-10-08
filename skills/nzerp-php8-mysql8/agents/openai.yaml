@@ -1,4 +1,0 @@
-interface:
-  display_name: "nzERP PHP8 MySQL8"
-  short_description: "PHP 8 and MySQL 8 coding rules for nzERP."
-  default_prompt: "Use this skill when editing PHP or MySQL-oriented data access in nzERP backend, service, or base. Follow PHP 8 compatible patterns, prefer typed code, and write MySQL 8 aware queries without assuming stricter runtime guarantees than the repo declares."

@@ -20,3 +20,10 @@ registry/translate-cache.json
 
 # 运行态临时输出
 .claude-plugin-local/
+
+# 本机安装/采纳的个人 skills 不入库——只保留项目官方 skills
+# 新增官方 skill 时用 git add -f skills/<slug>/ 强制跟踪
+skills/*
+!skills/.gitkeep
+!skills/aihot/
+!skills/skill-finder-cn/

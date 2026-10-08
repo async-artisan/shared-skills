@@ -1,4 +1,0 @@
-interface:
-  display_name: "深度决策推演"
-  short_description: "强化正反双方论证并找出决定性变量"
-  default_prompt: "请使用 $bidirectional-steelman 对这个问题做双向钢人论证，先不要直接下结论。"
