@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "skillsync"
+version = "0.1.0"
+description = "跨平台 Agent Skill 单仓同步工具"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "yesgooo_qjj" }]
+keywords = ["agent", "skills", "sync", "cli", "codex", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+
+[project.scripts]
+skillsync = "skillsync.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+web = ["argostranslate"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["tools/skillsync/skillsync"]
+
+[tool.hatch.build.targets.sdist]
+include = ["tools/skillsync", "README.md", "LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tools/skillsync/tests"]

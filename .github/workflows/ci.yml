@@ -64,9 +64,12 @@ jobs:
       - name: Compile all modules
         run: python3 -m py_compile tools/skillsync/skillsync/*.py
 
+      - name: Install test dependencies
+        run: python3 -m pip install --quiet pytest
+
       - name: Run unit tests
         working-directory: tools/skillsync
-        run: PYTHONPATH=. python3 -m unittest discover -s ../../tests/unit -v
+        run: PYTHONPATH=. python3 -m pytest tests/ -v
 
       - name: Lint catalog.yaml
         run: python3 -c "import sys; sys.path.insert(0, 'tools/skillsync'); from skillsync.store import load_catalog; load_catalog(); print('catalog.yaml OK')"
