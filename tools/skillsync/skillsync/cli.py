@@ -180,13 +180,18 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
 
 
 def cmd_apply(args: argparse.Namespace) -> int:
-    actions = apply_mod.run(
-        write=args.write,
-        platform=args.platform,
-        only=args.only,
-        link=args.link,
-        force=args.force,
-    )
+    try:
+        actions = apply_mod.run(
+            write=args.write,
+            platform=args.platform,
+            only=args.only,
+            link=args.link,
+            force=args.force,
+        )
+    except apply_mod.ApplyError as exc:
+        retry = f"；可通过 Web 控制台的撤销功能重试（ID：{exc.undo_id}）" if exc.undo_id else ""
+        print(f"[失败] {exc}{retry}", file=sys.stderr)
+        return 2
     if args.json:
         _print_json([asdict(a) for a in actions])
         return 0

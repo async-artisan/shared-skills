@@ -13,17 +13,25 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import urllib.error
 import urllib.request
+from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import quote, urlsplit
 
 MAX_FILES = 50
 MAX_FILE = 512 * 1024
 MAX_TOTAL = 5 * 1024 * 1024
 TIMEOUT = 20
 _UA = {"User-Agent": "skillsync-import/0.1"}
+_API_HOSTS = frozenset({"api.github.com"})
+_DOWNLOAD_HOSTS = frozenset({"raw.githubusercontent.com", "github.com", "www.github.com",
+                             "objects.githubusercontent.com"})
+_SKILLS_SH_HOSTS = frozenset({"skills.sh", "www.skills.sh"})
+_ALL_HOSTS = _API_HOSTS | _DOWNLOAD_HOSTS | _SKILLS_SH_HOSTS
 
 GH_TREE_RE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)"
@@ -39,12 +47,66 @@ class RemoteError(Exception):
     """远程抓取失败（网络、限流、结构不符）。"""
 
 
-def _http_get(url: str, *, accept: str = "application/json") -> bytes:
+class _AllowedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed_hosts: frozenset[str]):
+        super().__init__()
+        self.allowed_hosts = allowed_hosts
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _validate_url(newurl, self.allowed_hosts)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _validate_url(url: str, allowed_hosts: frozenset[str]) -> None:
+    if not isinstance(url, str) or not url:
+        raise RemoteError("远程下载地址不合法")
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise RemoteError("远程地址端口不合法") from exc
+    if (parsed.scheme != "https" or not host or host not in allowed_hosts
+            or port not in (None, 443) or parsed.username or parsed.password):
+        raise RemoteError(f"远程地址不在允许范围内：{url}")
+
+
+def _http_get(url: str, *, accept: str = "application/json",
+              max_bytes: int = MAX_FILE * 4,
+              allowed_hosts: frozenset[str] | None = None) -> bytes:
+    if allowed_hosts is None:
+        allowed_hosts = _ALL_HOSTS
+    if allowed_hosts is not None:
+        _validate_url(url, allowed_hosts)
     req = urllib.request.Request(url, headers={**_UA, "Accept": accept})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-            return resp.read(MAX_FILE * 4)
+        opener = urllib.request.build_opener(_AllowedRedirectHandler(allowed_hosts))
+        with opener.open(req, timeout=TIMEOUT) as resp:
+            final_url = resp.geturl() if hasattr(resp, "geturl") else url
+            if allowed_hosts is not None:
+                _validate_url(final_url, allowed_hosts)
+            headers = getattr(resp, "headers", None)
+            content_length = headers.get("Content-Length") if headers else None
+            if content_length:
+                try:
+                    if int(content_length) > max_bytes:
+                        raise RemoteError(f"远程响应超过大小上限 {max_bytes} 字节")
+                except ValueError as exc:
+                    raise RemoteError("远程响应 Content-Length 不合法") from exc
+            chunks: list[bytes] = []
+            total = 0
+            while total <= max_bytes:
+                chunk = resp.read(min(64 * 1024, max_bytes + 1 - total))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+            if total > max_bytes:
+                raise RemoteError(f"远程响应超过大小上限 {max_bytes} 字节")
+            return b"".join(chunks)
     except urllib.error.HTTPError as exc:
+        if 300 <= exc.code < 400:
+            raise RemoteError("远程地址发生重定向，已拒绝以避免跨主机下载") from exc
         if exc.code == 403 and exc.headers.get("X-RateLimit-Remaining") == "0":
             raise RemoteError("GitHub API 限流（未认证 60 次/小时），稍后再试") from exc
         if exc.code == 404:
@@ -57,8 +119,8 @@ def _http_get(url: str, *, accept: str = "application/json") -> bytes:
 def _contents(owner: str, repo: str, ref: str | None, path: str) -> list[dict[str, Any]]:
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     if ref:
-        url += f"?ref={urllib.request.quote(ref, safe='')}"
-    data = json.loads(_http_get(url).decode("utf-8", "replace"))
+        url += f"?ref={quote(ref, safe='')}"
+    data = json.loads(_http_get(url, allowed_hosts=_API_HOSTS).decode("utf-8", "replace"))
     if isinstance(data, dict):  # 单文件
         return [data]
     if isinstance(data, list):
@@ -68,8 +130,24 @@ def _contents(owner: str, repo: str, ref: str | None, path: str) -> list[dict[st
 
 def _fetch_github(owner: str, repo: str, ref: str | None, path: str) -> dict[str, Any]:
     path = path.strip("/")
-    entries: list[tuple[str, str]] = []  # (rel_path, download_url)
+    entries: list[tuple[str, str, int]] = []  # (relative path, download_url, declared size)
     total = 0
+
+    def relative_path(full: str) -> str:
+        if not isinstance(full, str):
+            raise RemoteError("远端返回缺少合法文件路径")
+        normalized = PurePosixPath(full)
+        if (not full or "\\" in full or normalized.is_absolute()
+                or any(part in ("", ".", "..") for part in full.split("/"))):
+            raise RemoteError(f"远端返回非法路径：{full}")
+        prefix = path.rstrip("/") + "/" if path else ""
+        if prefix and full.startswith(prefix):
+            return full[len(prefix):]
+        if path and full == path:
+            return Path(full).name
+        if prefix:
+            raise RemoteError(f"远端文件路径超出所选目录：{full}")
+        return full
 
     def walk(prefix: str, depth: int) -> None:
         nonlocal total
@@ -77,45 +155,88 @@ def _fetch_github(owner: str, repo: str, ref: str | None, path: str) -> dict[str
             raise RemoteError("目录层级过深（>4），请直接指定技能子目录")
         for item in _contents(owner, repo, ref, prefix):
             kind = item.get("type")
-            rel = item.get("path", "").lstrip("/")
+            full = item.get("path", "")
+            rel = relative_path(full)
             if kind == "file":
-                size = int(item.get("size") or 0)
+                try:
+                    size = int(item.get("size") or 0)
+                except (TypeError, ValueError) as exc:
+                    raise RemoteError(f"{rel} 的远端文件大小不合法") from exc
+                if size < 0:
+                    raise RemoteError(f"{rel} 的远端文件大小不合法")
                 if size > MAX_FILE:
                     raise RemoteError(f"{rel} 超过单文件上限 512KB")
                 total += size
                 if total > MAX_TOTAL:
                     raise RemoteError("目录总量超过 5MB 上限")
-                entries.append((rel, item.get("download_url") or ""))
+                entries.append((rel, item.get("download_url") or "", size))
                 if len(entries) > MAX_FILES:
                     raise RemoteError(f"文件数超过 {MAX_FILES} 上限")
             elif kind == "dir":
-                walk(rel, depth + 1)
+                walk(full, depth + 1)
 
     walk(path, 0)
     if not entries:
         raise RemoteError("目标目录为空")
-    if not any(rel.endswith("SKILL.md") for rel, _ in entries):
-        raise RemoteError("该目录没有 SKILL.md（技能目录必须包含 SKILL.md）")
+    root_skills = [item for item in entries if item[0] == "SKILL.md"]
+    if len(root_skills) != 1:
+        raise RemoteError("技能目录必须包含唯一的根 SKILL.md")
+    if any(item[0] != "SKILL.md" and item[0].endswith("/SKILL.md") for item in entries):
+        raise RemoteError("技能目录不能包含嵌套的 SKILL.md")
 
-    skill_md = next(rel for rel, _ in entries if rel.endswith("SKILL.md"))
-    raw = _http_get(next(u for rel, u in entries if rel == skill_md),
-                    accept="text/plain").decode("utf-8", "replace")
+    skill_md, skill_url, _ = root_skills[0]
+    if not skill_url:
+        raise RemoteError("SKILL.md 缺少可下载地址")
+    blobs: dict[str, bytes] = {}
+    actual_total = 0
+    for rel, dl, _ in entries:
+        if not dl:
+            raise RemoteError(f"远端文件缺少可下载地址：{rel}")
+        remaining = MAX_TOTAL - actual_total
+        blob = _http_get(dl, accept="text/plain",
+                         max_bytes=min(MAX_FILE, remaining),
+                         allowed_hosts=_DOWNLOAD_HOSTS)
+        if len(blob) > MAX_FILE or len(blob) > remaining:
+            raise RemoteError("下载内容超过单文件或总量上限")
+        blobs[rel] = blob
+        actual_total += len(blobs[rel])
+    raw = blobs[skill_md].decode("utf-8", "replace")
     name, desc = _parse_frontmatter(raw)
     if not name:
         name = skill_md[: -len("SKILL.md")].strip("/").split("/")[-1]
-    blobs: dict[str, bytes] = {}
-    for rel, dl in entries:
-        blobs[rel] = _http_get(dl, accept="text/plain") if dl else b""
-    files = [{"path": rel, "size": len(blobs[rel])} for rel, _ in entries]
-    return {
+    files = [{"path": rel, "size": len(blobs[rel]),
+              "sha256": hashlib.sha256(blobs[rel]).hexdigest()}
+             for rel, _, _ in entries]
+    preview = {
         "source": f"https://github.com/{owner}/{repo}"
                   + (f"/tree/{ref}/{path}" if path else ""),
         "name": name,
         "description": desc,
         "files": files,
-        "total_bytes": sum(len(b) for b in blobs.values()),
+        "total_bytes": actual_total,
         "blobs": blobs,
     }
+    preview["binding"] = preview_binding(preview)
+    return preview
+
+
+def preview_binding(preview: dict[str, Any]) -> str:
+    """返回绑定远程预览内容的摘要，供确认请求防止内容漂移。"""
+    files = [
+        {"path": str(item.get("path") or ""),
+         "size": int(item.get("size") or 0),
+         "sha256": str(item.get("sha256") or "")}
+        for item in preview.get("files", [])
+    ]
+    files.sort(key=lambda item: item["path"])
+    material = {
+        "source": str(preview.get("source") or ""),
+        "name": str(preview.get("name") or ""),
+        "files": files,
+    }
+    raw = json.dumps(material, ensure_ascii=False, sort_keys=True,
+                     separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
 
 
 def _parse_frontmatter(md_text: str) -> tuple[str, str]:
@@ -145,7 +266,7 @@ def _parse_frontmatter(md_text: str) -> tuple[str, str]:
 
 
 def _resolve_skills_sh(url: str) -> str:
-    html = _http_get(url, accept="text/html").decode("utf-8", "replace")
+    html = _http_get(url, accept="text/html", allowed_hosts=_SKILLS_SH_HOSTS).decode("utf-8", "replace")
     m = GH_LINK_RE.search(html)
     if not m:
         raise RemoteError("skills.sh 页面中未找到 GitHub 链接；请直接粘贴该技能的 GitHub 地址")
@@ -155,14 +276,18 @@ def _resolve_skills_sh(url: str) -> str:
 def fetch(url: str) -> dict[str, Any]:
     """解析任意受支持的 URL → 技能目录预览（不落盘）。"""
     url = (url or "").strip()
-    if not url.startswith("https://"):
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme != "https":
         raise RemoteError("仅支持 https:// 链接")
-    if "github.com/" not in url and "skills.sh/" not in url:
+    if host not in {"github.com", "www.github.com", "skills.sh", "www.skills.sh"}:
         raise RemoteError("当前支持 github.com 与 skills.sh；其他来源请粘贴其 GitHub 链接")
-    if "skills.sh/" in url:
+    if host in _SKILLS_SH_HOSTS:
         url = _resolve_skills_sh(url)
     m = GH_TREE_RE.match(url)
     if not m:
         raise RemoteError("无法解析 GitHub 链接：需要仓库、/tree/{ref}/{path} 或 /blob/{ref}/{path} 形态")
     owner, repo, ref, path = m.group(1), m.group(2), m.group(3), m.group(4) or ""
+    if any(part in (".", "..") for part in PurePosixPath(path).parts):
+        raise RemoteError("GitHub 路径包含非法目录段")
     return _fetch_github(owner, repo, ref, path)

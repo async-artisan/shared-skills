@@ -1091,6 +1091,7 @@ $("#modalMask").addEventListener("click", e => { if (e.target.id === "modalMask"
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 // ---- 远程导入：github.com / skills.sh → 预览 → canonical ----
+// 预览带回远端内容摘要（binding），确认时原样回传，服务端据此拒绝内容已漂移的导入
 window.openImport = function () {
   modal("从远程导入技能", `
     <div class="meta-line">支持 github.com 仓库 / tree / blob 链接与 skills.sh 页面；先解析预览，确认后才写入技能库</div>
@@ -1122,6 +1123,7 @@ async function importParse() {
         <input type="text" id="importName" value="${esc(p.name || "")}" style="width:55%" autocomplete="off">
         <span class="muted">${p.files.length} 个文件 · ${(p.total_bytes / 1024).toFixed(1)} KB</span></div>
       <ul style="margin:0 0 0 18px;font-size:13.5px;line-height:1.7">${files}</ul>`;
+    $("#importConfirmBtn").dataset.binding = p.binding || "";
     $("#importConfirmBtn").style.display = "";
   } catch (e) {
     prev.innerHTML = `<div class="warn">${esc(e.message)}</div>`;
@@ -1134,9 +1136,13 @@ window.importConfirmGo = async function () {
   btn.disabled = true;
   try {
     const r = await api("/api/import/confirm", { method: "POST",
-      body: { url: $("#importUrl").value.trim(), name } });
+      body: { url: $("#importUrl").value.trim(), name,
+        binding: btn.dataset.binding || "" } });
     closeModal();
     toast(`已导入 ${r.name}（${r.files} 个文件），已登记进技能库（尚未下发到任何平台）`, "ok");
+    if (r.audit_warning) toast(r.audit_warning, "err");
+    const warns = (r.security_warnings || []).filter(w => w.level === "WARN");
+    if (warns.length) toast(`远程技能安全扫描发现 ${warns.length} 条 WARN：${warns.map(w => `${w.file} ${w.rule}`).join("；")}`, "err");
     await refresh();
   } catch (e) { toast(e.message, "err"); btn.disabled = false; }
 };
@@ -1405,8 +1411,9 @@ async function runApply(write, link, force, platform, only) {
     const r = await api("/api/apply", { method: "POST",
       body: { write, link, force, platform: platform || null, only: only || null } });
     const lines = r.actions.map(a => `[${a.platform}] ${a.slug} ${a.kind} — ${a.detail}`);
+    const hasWarning = r.actions.some(a => a.kind === "warning");
     modal(write ? "apply 执行结果" : "apply 预演结果",
-      `<div class="meta-line">${r.refused.length ? r.refused.length + " 项被安全拒绝" : "全部可执行 · ALL CLEAR"}</div>
+      `<div class="meta-line">${r.refused.length ? r.refused.length + " 项被安全拒绝" : hasWarning ? "变更已完成，但有警告" : "全部可执行 · ALL CLEAR"}</div>
        <pre class="out">${esc(lines.join("\n") || "（无动作）")}</pre>`,
       `<button onclick="closeModal()">关闭</button>`);
     if (write) await refresh();

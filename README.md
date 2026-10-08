@@ -186,9 +186,19 @@ tests/unit/        单元测试（unittest，零依赖）
 
 ## 测试
 
+运行完整的本地测试（测试会自动使用临时仓和临时平台目录，不会写入个人技能目录）：
+
 ```bash
-cd tools/skillsync && PYTHONPATH=. python3 -m unittest discover -s ../../tests/unit -v
+python3 -m pip install pytest  # 仅供本地测试
+python3 -m unittest discover -s tests/unit -v
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=tools/skillsync \
+  python3 -m pytest tools/skillsync/tests -v
+python3 tests/cli_smoke.py
 ```
+
+CI 会执行上述 unittest、pytest 和隔离 CLI smoke。pytest 仅用于开发测试，不是运行
+skillsync 的运行时依赖；本地 pytest 环境通过 `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`
+固定，避免加载无关的全局插件。
 
 E2E 测试（带真实 CLI subprocess + 浏览器自动化）放在 `/tmp/skillsync_*_e2e.py`，不进仓，本地按需运行。
 
@@ -202,7 +212,8 @@ E2E 测试（带真实 CLI subprocess + 浏览器自动化）放在 `/tmp/skills
 - 写操作三件套：UI `confirm` + 服务端 `Tx` 逆操作 + `audit()` 留痕
 - DOM id / `window.*` 函数名 / API 路径一经发布不得变更，只能新增
 - 中文 commit message（`feat(skillsync): …` / `fix(web): …`）
-- 单元测试用 `unittest`，不引入 pytest
+- 业务单元测试放在 `tests/unit/`，使用标准库 `unittest`；包级 pytest 测试放在 `tools/skillsync/tests/`
+- CI 同时运行 unittest、pytest 和隔离 CLI smoke；新增测试不得读写真实用户技能目录
 
 ## 许可证
 

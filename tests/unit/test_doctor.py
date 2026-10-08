@@ -73,8 +73,8 @@ class TestScanAll(unittest.TestCase):
         return slug
 
     def test_empty_canonical_clean(self):
-        # SKILLSYNC_HOME 重定向 canonical 目录；平台目录（~/.codex 等）由用户家目录决定，
-        # 不在测试隔离范围内。本断言只关心 canonical 空时计数与归档统计为 0。
+        # SKILLSYNC_HOME 与 SKILLSYNC_PLATFORMS 都由 _bootstrap 重定向到临时目录。
+        # 本断言只关心 canonical 空时计数与归档统计为 0。
         result = scan_all()
         self.assertEqual(result["canonical_count"], 0)
         self.assertEqual(result["archived_n"], 0)

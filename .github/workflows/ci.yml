@@ -64,15 +64,23 @@ jobs:
       - name: Compile all modules
         run: python3 -m py_compile tools/skillsync/skillsync/*.py
 
+      - name: Lint catalog example
+        env:
+          PYTHONPATH: tools/skillsync
+        run: python3 -c "from pathlib import Path; from skillsync import yamllite; yamllite.parse(Path('registry/catalog.example.yaml').read_text(encoding='utf-8')); print('catalog.example.yaml OK')"
+
       - name: Install test dependencies
         run: python3 -m pip install --quiet pytest
 
-      - name: Run unit tests
-        working-directory: tools/skillsync
-        run: PYTHONPATH=. python3 -m pytest tests/ -v
+      - name: Run unittest suite
+        run: python3 -m unittest discover -s tests/unit -v
 
-      - name: Lint catalog.yaml
-        run: python3 -c "import sys; sys.path.insert(0, 'tools/skillsync'); from skillsync.store import load_catalog; load_catalog(); print('catalog.yaml OK')"
+      - name: Run pytest suite
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          PYTHONPATH: tools/skillsync
+        run: python3 -m pytest tools/skillsync/tests -v
 
-      - name: Static CLI smoke
-        run: PYTHONPATH=tools/skillsync python3 -m skillsync --help
+      - name: Isolated CLI smoke
+        run: |
+          python3 tests/cli_smoke.py

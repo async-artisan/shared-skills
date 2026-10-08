@@ -11,9 +11,20 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, hash_skill
+from .core import PLATFORMS, SKILL_MD, SKILLS_DIR, STATE_PATH, hash_skill
 from . import undo as undo_mod
 from .store import audit, load_catalog, load_state, save_state
+
+
+class ApplyError(RuntimeError):
+    """apply 写入或自动回滚失败。
+
+    ``undo_id`` 只在自动回滚没有完全成功、需要用户重试撤销时设置。
+    """
+
+    def __init__(self, message: str, undo_id: str | None = None):
+        super().__init__(message)
+        self.undo_id = undo_id
 
 
 def _is_within(child: Path, base: Path) -> bool:
@@ -96,6 +107,79 @@ def _readlink(path: Path) -> str:
         return "?"
 
 
+def _nearest_existing_parent(path: Path) -> Path:
+    """返回 path 的最近已存在父目录，不创建任何目录。"""
+    current = path
+    while not current.exists() and current != current.parent:
+        current = current.parent
+    return current
+
+
+def _preflight(actions: list[Action]) -> None:
+    """在第一个写动作前复核计划，阻止计划与当前文件系统状态脱节。"""
+    errors: list[str] = []
+    seen_targets: set[Path] = set()
+    for action in actions:
+        if action.kind in ("ok", "refused"):
+            continue
+        platform = PLATFORMS.get(action.platform)
+        if platform is None:
+            errors.append(f"{action.platform}/{action.slug}：平台不存在")
+            continue
+        target = platform.skills_dir / action.slug
+        canonical = SKILLS_DIR / action.slug
+        # 只解析父目录，不能解析最终目标：--force 允许替换指向仓外的旧软链。
+        try:
+            target_parent_ok = target.parent.resolve(strict=False).is_relative_to(
+                platform.skills_dir.resolve(strict=False))
+        except (OSError, ValueError):
+            target_parent_ok = False
+        if not target_parent_ok:
+            errors.append(f"{action.platform}/{action.slug}：目标路径越界")
+            continue
+        if Path(action.slug).name != action.slug or action.slug in (".", ".."):
+            errors.append(f"{action.platform}/{action.slug}：技能名必须是单层目录名")
+            continue
+        lexical_target = target.absolute()
+        if lexical_target in seen_targets:
+            errors.append(f"{action.platform}/{action.slug}：目标路径重复")
+        seen_targets.add(lexical_target)
+        if not (canonical / SKILL_MD).is_file():
+            errors.append(f"{action.platform}/{action.slug}：canonical 缺少 {SKILL_MD}")
+            continue
+        parent = _nearest_existing_parent(target.parent)
+        if not parent.is_dir() or not os.access(parent, os.W_OK | os.X_OK):
+            errors.append(f"{action.platform}/{action.slug}：目标父目录不可写：{parent}")
+            continue
+        if action.kind == "link-create":
+            if target.exists() or target.is_symlink():
+                errors.append(f"{action.platform}/{action.slug}：目标已在计划后发生变化")
+        elif action.kind == "relink-broken":
+            if not target.is_symlink() or target.exists():
+                errors.append(f"{action.platform}/{action.slug}：失效软链已在计划后发生变化")
+        elif action.kind == "relink-foreign":
+            if not target.is_symlink() or not target.exists():
+                errors.append(f"{action.platform}/{action.slug}：仓外软链已在计划后发生变化")
+        elif action.kind == "copy-to-link":
+            if not target.is_dir() or target.is_symlink():
+                errors.append(f"{action.platform}/{action.slug}：实体目录已在计划后发生变化")
+            elif hash_skill(target) != hash_skill(canonical):
+                errors.append(f"{action.platform}/{action.slug}：内容已在计划后发生变化")
+    if errors:
+        raise ApplyError("apply 预检失败，未执行任何写操作：" + "；".join(errors))
+
+
+def _rollback(ops: list[dict[str, Any]]) -> list[str]:
+    """逆序回放本次 apply 新增的撤销指令，尽量完成全部回滚。"""
+    errors: list[str] = []
+    for op in reversed(ops):
+        try:
+            undo_mod._apply_op(op)
+        except Exception as exc:
+            errors.append(f"{op.get('op', '?')}: {exc}")
+    return errors
+
+
 def run(write: bool = False, platform: str | None = None, only: str | None = None,
         link: bool = False, force: bool = False,
         tx: "undo_mod.Tx | None" = None) -> list[Action]:
@@ -103,16 +187,62 @@ def run(write: bool = False, platform: str | None = None, only: str | None = Non
     actions = _plan(pf, only, link_copies=link, force=force)
     if write:
         owned = tx or undo_mod.Tx("apply")
-        catalog = load_catalog()
-        for a in actions:
-            _execute(a, owned)
-        save_state(_touch_last_apply(actions))
+        _preflight(actions)
+        op_start = len(owned.ops)
+        state_before = load_state()
+        state_file_existed = STATE_PATH.exists()
+        state_write_attempted = False
+        commit_attempted = False
+        try:
+            for a in actions:
+                _execute(a, owned)
+            state_write_attempted = True
+            save_state(_touch_last_apply(actions))
+            changed = sum(1 for a in actions if a.kind not in ("ok", "refused"))
+            if tx is None:
+                commit_attempted = True
+                owned.commit(f"下发 {changed} 处变更" + (f"（{only}）" if only else ""))
+        except Exception as exc:
+            new_ops = owned.ops[op_start:]
+            rollback_errors = _rollback(new_ops)
+            if state_write_attempted:
+                try:
+                    if state_file_existed:
+                        save_state(state_before)
+                    else:
+                        STATE_PATH.unlink(missing_ok=True)
+                except Exception as state_exc:
+                    rollback_errors.append(f"state: {state_exc}")
+            if commit_attempted and not rollback_errors:
+                undo_path = SKILLS_DIR.parent / "registry" / "undo" / f"{owned.id}.json"
+                try:
+                    undo_path.unlink(missing_ok=True)
+                except OSError as cleanup_exc:
+                    rollback_errors.append(f"undo-record cleanup: {cleanup_exc}")
+            if not rollback_errors:
+                del owned.ops[op_start:]
+                raise ApplyError(f"apply 执行失败，已自动回滚：{exc}") from exc
+            # 外层 adopt 共享同一 Tx：保留新增 ops，由外层统一提交回滚点。
+            detail = (f"apply 执行失败，回滚失败（部分动作已回滚）：{exc}；"
+                      f"可通过 undo 重试：{'；'.join(rollback_errors)}")
+            undo_id = None
+            if tx is None:
+                try:
+                    undo_id = owned.commit(detail)
+                except Exception as commit_exc:
+                    detail += f"；撤销记录写入失败：{commit_exc}"
+            raise ApplyError(detail, undo_id=undo_id) from exc
         changed = sum(1 for a in actions if a.kind not in ("ok", "refused"))
-        audit("apply", platform=platform or "*",
-              executed=changed,
-              refused=sum(1 for a in actions if a.kind == "refused"), undo=owned.id)
+        # 共享事务由外层操作统一记录审计，避免外层失败后残留成功记录。
         if tx is None:
-            owned.commit(f"下发 {changed} 处变更" + (f"（{only}）" if only else ""))
+            try:
+                audit("apply", platform=platform or "*",
+                      executed=changed,
+                      refused=sum(1 for a in actions if a.kind == "refused"), undo=owned.id)
+            except OSError as exc:
+                warning = Action(platform or "*", only or "", "warning",
+                                 f"apply 已完成且可撤销，但审计日志写入失败：{exc}")
+                actions.append(warning)
     return actions
 
 
@@ -131,7 +261,12 @@ def _execute(a: Action, tx: "undo_mod.Tx") -> None:
         os.symlink(canonical, target)
         a.detail = f"已替换为软链 → {canonical}"
     elif a.kind == "copy-to-link":
-        backup = target.with_name(target.name + ".bak-" + datetime.now().strftime("%Y%m%d%H%M%S"))
+        stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        backup = target.with_name(target.name + ".bak-" + stamp)
+        suffix = 1
+        while backup.exists():
+            backup = target.with_name(target.name + f".bak-{stamp}-{suffix}")
+            suffix += 1
         tx.unbak(backup, target)  # 撤销 = 删软链 + 实体目录改回原名
         target.rename(backup)
         os.symlink(canonical, target)

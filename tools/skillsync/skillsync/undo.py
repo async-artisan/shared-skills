@@ -93,6 +93,15 @@ def _allowed_root(path: Path) -> bool:
     return any(rp == r or r in rp.parents for r in roots)
 
 
+def _allowed_link_path(path: Path) -> bool:
+    """验证软链目录项的位置，不跟随软链本身的目标。"""
+    if path.name in ("", ".", ".."):
+        return False
+    parent = path.parent.resolve()
+    roots = [SKILLS_DIR.resolve()] + [PLATFORMS[k].skills_dir.resolve() for k in PLATFORMS]
+    return any(parent == root or root in parent.parents for root in roots)
+
+
 def _rm_tree(path: Path) -> None:
     # 幂等：已不存在视为成功（撤销重试场景下目标可能已被清理）
     if path.is_symlink() or path.is_file():
@@ -106,9 +115,13 @@ def _apply_op(op: dict[str, Any]) -> str:
     if kind in ("rm_tree", "rm_link", "restore_link", "unbak", "restore_bak_dir"):
         p = Path(op["path"]) if "path" in op else Path(op["target"])
         bak = Path(op["bak"]) if kind in ("unbak", "restore_bak_dir") else None
-        for cand in (p, bak):
-            if cand is not None and not _allowed_root(cand):
-                raise UndoError(f"撤销指令路径越界：{cand}")
+        if kind in ("rm_link", "restore_link"):
+            if not _allowed_link_path(p):
+                raise UndoError(f"撤销指令路径越界：{p}")
+        elif not _allowed_root(p):
+            raise UndoError(f"撤销指令路径越界：{p}")
+        if bak is not None and not _allowed_root(bak):
+            raise UndoError(f"撤销指令路径越界：{bak}")
     if kind == "rm_tree":
         _rm_tree(Path(op["path"]))
         return f"已删除 {op['path']}"
@@ -119,13 +132,13 @@ def _apply_op(op: dict[str, Any]) -> str:
             return f"已移除软链 {op['path']}"
         if not t.exists():
             return f"目标已不存在，跳过 {op['path']}"
-        return "目标不是软链，跳过"
+        raise UndoError(f"目标已变为非软链对象，无法安全移除：{op['path']}")
     if kind == "restore_link":
         t = Path(op["path"])
         if t.is_symlink():
             t.unlink()
         elif t.exists() and not t.is_symlink():
-            return f"目标已是非软链文件，跳过 {op['path']}"
+            raise UndoError(f"目标已变为非软链对象，无法安全恢复：{op['path']}")
         prev = op.get("prev")
         if prev:
             os.symlink(prev, t)

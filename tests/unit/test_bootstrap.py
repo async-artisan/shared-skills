@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -12,7 +13,7 @@ TOOLS = Path(__file__).resolve().parents[2] / "tools" / "skillsync"
 sys.path.insert(0, str(TOOLS))
 
 from skillsync import bootstrap  # noqa: E402
-from skillsync.core import SKILLS_DIR  # noqa: E402
+from skillsync.core import PLATFORMS, SKILLS_DIR  # noqa: E402
 from skillsync.store import load_catalog, save_catalog  # noqa: E402
 
 
@@ -20,6 +21,7 @@ class TestBootstrap(unittest.TestCase):
     def setUp(self):
         self.reg = SKILLS_DIR.parent / "registry"
         self.reg.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(SKILLS_DIR, ignore_errors=True)
         SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         # 空 catalog + 空 state
         save_catalog({"version": 1, "skills": {}})
@@ -66,7 +68,7 @@ class TestBootstrap(unittest.TestCase):
         self._make_canonical("beta")
         self._register("beta", ["codex"])
         # 确保平台目录存在但没有该技能
-        codex_dir = Path.home() / ".codex" / "skills"
+        codex_dir = PLATFORMS["codex"].skills_dir
         codex_dir.mkdir(parents=True, exist_ok=True)
         target = codex_dir / "beta"
         if target.exists() or target.is_symlink():
@@ -81,7 +83,7 @@ class TestBootstrap(unittest.TestCase):
     def test_dry_run_does_not_create_symlink(self):
         self._make_canonical("gamma")
         self._register("gamma", ["codex"])
-        codex_dir = Path.home() / ".codex" / "skills"
+        codex_dir = PLATFORMS["codex"].skills_dir
         codex_dir.mkdir(parents=True, exist_ok=True)
         target = codex_dir / "gamma"
         if target.exists() or target.is_symlink():

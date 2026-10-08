@@ -11,7 +11,7 @@
 #
 # skills:
 #   my-skill:
-#     source_platform: manual       # 采纳来源：codex/claude/workbuddy/trae/manual
+#     source_platform: manual       # 采纳来源：codex/claude/workbuddy/trae/remote/manual
 #     platforms:                    # 已软链下发的平台清单
 #       - codex
 #       - trae

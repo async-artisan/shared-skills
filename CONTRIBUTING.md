@@ -31,11 +31,18 @@
 
 1. Fork 仓库，从 `main` 切出特性分支：`git checkout -b feat/your-feature`。
 2. 改代码前先读相关源码；同一文件多处编辑串行执行，写完立即复核落盘片段。
-3. 新增/改动逻辑必须有单元测试（`tests/unit/`，使用 `unittest`，不引入 pytest）：
+3. 新增/改动逻辑必须有自动化测试。业务单元测试放在 `tests/unit/`（使用
+   `unittest`）；包级测试可放在 `tools/skillsync/tests/`（使用 `pytest`）。所有测试
+   必须使用临时 `SKILLSYNC_HOME` 和临时平台目录，不得读写真实用户技能目录：
    ```bash
-   cd tools/skillsync && PYTHONPATH=. python3 -m unittest discover -s ../../tests/unit -v
+   python3 -m pip install pytest
+   python3 -m unittest discover -s tests/unit -v
+   PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONPATH=tools/skillsync \
+     python3 -m pytest tools/skillsync/tests -v
+   python3 tests/cli_smoke.py
    ```
-4. 跑一遍 `bin/skillsync doctor` 与 `bin/skillsync verify`，确保本机无 regression。
+4. 跑一遍隔离 smoke（包含 `doctor --strict`、`verify`、`apply` dry-run、`--help`、
+   `--version`），确保本机无 regression。直接操作真实平台目录前需要单独确认环境。
 5. 涉及 UI 的改动，浏览器实测一遍（`bin/skillsync serve --no-browser` 后访问 `http://127.0.0.1:48920/`）。
 6. 提交时只暂存本任务产生的文件，不要 `git add -A`（避免误纳 `registry/audit.logl` 等机器本地数据）。
 7. PR 标题简短（≤70 字符），描述写清「为什么改、怎么测的、有无破坏性变更」。

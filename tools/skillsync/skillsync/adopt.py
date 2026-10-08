@@ -117,8 +117,6 @@ def adopt(platform_key: str, name: str, target_platforms: list[str] | None = Non
         }
         owned.catalog_set(slug, None)
         save_catalog(catalog)
-        audit("adopt", slug=slug, platform=platform_key, targets=platforms,
-              security_warnings=warn_n, source=str(source), undo=owned.id)
 
         detail = "已复制进 canonical 并登记 catalog"
         if link:
@@ -132,6 +130,11 @@ def adopt(platform_key: str, name: str, target_platforms: list[str] | None = Non
         raise
     if tx is None:
         owned.commit(detail)
+        try:
+            audit("adopt", slug=slug, platform=platform_key, targets=platforms,
+                  security_warnings=warn_n, source=str(source), undo=owned.id)
+        except OSError:
+            detail += "；审计日志写入失败"
     return AdoptResult(slug, platform_key, "adopted", detail, warn_n)
 
 

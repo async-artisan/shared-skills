@@ -16,7 +16,10 @@ import io
 import json
 import os
 import re
+import shutil
+import tempfile
 import threading
+import unicodedata
 from dataclasses import asdict
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -41,13 +44,15 @@ from .core import (
     extract_description,
     hash_skill,
     iter_skill_files,
+    parse_frontmatter,
     read_text_cached,
     scan_platform,
 )
 from .doctor import PROBLEM_STATUSES, scan_all
-from .store import audit, load_catalog, load_state, save_state
+from .store import audit, load_catalog, load_state, save_catalog, save_state
 from .adopt import AdoptError
 from .resolve import ResolveError
+from .security import scan_skill
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 INDEX_HTML = WEB_DIR / "index.html"
@@ -429,13 +434,17 @@ def _do_resolve(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _do_apply(body: dict[str, Any]) -> dict[str, Any]:
-    actions = apply_mod.run(
-        write=bool(body.get("write")),
-        platform=body.get("platform") or None,
-        only=body.get("only") or None,
-        link=bool(body.get("link")),
-        force=bool(body.get("force")),
-    )
+    try:
+        actions = apply_mod.run(
+            write=bool(body.get("write")),
+            platform=body.get("platform") or None,
+            only=body.get("only") or None,
+            link=bool(body.get("link")),
+            force=bool(body.get("force")),
+        )
+    except apply_mod.ApplyError as exc:
+        retry = f"；撤销 ID：{exc.undo_id}" if exc.undo_id else ""
+        raise ApiError(f"{exc}{retry}", 409, "apply_failed") from exc
     return {
         "ok": True,
         "dry_run": not bool(body.get("write")),
@@ -511,36 +520,170 @@ def _do_import_preview(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _do_import_confirm(body: dict[str, Any]) -> dict[str, Any]:
-    """确认导入：同一 URL 重新抓取（保证最新），校验名称后写入 canonical。"""
+    """确认导入：同一 URL 重新抓取（保证最新），校验名称后写入 canonical 并登记 catalog。"""
     url = str(body.get("url") or "").strip()
     name = str(body.get("name") or "").strip()
+    binding = str(body.get("binding") or "").strip()
     if not url:
         raise ApiError("url 必填")
     if not _IMPORT_NAME_RE.match(name):
         raise ApiError("导入名称需为小写字母/数字/连字符（≤64 位，字母开头）")
+    if not binding:
+        raise ApiError("缺少预览绑定，请重新解析远程地址")
     try:
         preview = remote_mod.fetch(url)
     except remote_mod.RemoteError as exc:
         raise ApiError(str(exc))
+    if remote_mod.preview_binding(preview) != binding:
+        raise ApiError("远程内容已变化，请重新解析预览后再确认导入")
+    if str(preview.get("name") or "").strip() != name:
+        raise ApiError(f"预览名称（{preview.get('name') or '缺失'}）与导入名称（{name}）不一致")
     dest = SKILLS_DIR / name
-    if dest.exists():
+    if dest.exists() or dest.is_symlink():
         raise ApiError(f"skills/{name} 已存在，请改用其他名称")
+    catalog_before = load_catalog()
+    if name in catalog_before.get("skills", {}):
+        raise ApiError(f"catalog 已登记技能：{name}，请先处理现有条目")
+    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    temp_dir = Path(tempfile.mkdtemp(prefix=f".{name}.import-", dir=str(SKILLS_DIR)))
     tx = undo_mod.Tx("import", name)
     tx.rm_tree(dest)  # 撤销 = 删除导入目录
-    written = 0
-    for rel, data in preview["blobs"].items():
-        parts = PurePosixPath(rel).parts
-        if not parts or any(p in ("", ".", "..") for p in parts) or PurePosixPath(rel).is_absolute():
-            raise ApiError(f"远端返回非法路径：{rel}")
-        target = dest / Path(*parts)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-        written += 1
-    audit("import", slug=name, platform="canonical",
-          source=preview["source"], files=written, via="web", undo=tx.id)
-    tx.commit(f"导入 {name}（{written} 个文件）")
+    created_dest = False
+    catalog_saved = False
+    try:
+        written = 0
+        file_meta = {str(item.get("path")): item for item in preview.get("files", [])}
+        if len(file_meta) != len(preview.get("files", [])):
+            raise ApiError("预览文件列表包含重复路径")
+        if set(file_meta) != set(preview.get("blobs", {})):
+            raise ApiError("预览文件清单与下载内容不一致")
+        normalized_paths: dict[str, str] = {}
+        path_parts: dict[str, tuple[str, ...]] = {}
+        for rel, data in preview["blobs"].items():
+            parts = PurePosixPath(rel).parts
+            if (not parts or "\\" in rel
+                    or any(p in ("", ".", "..") for p in rel.split("/"))
+                    or PurePosixPath(rel).is_absolute()):
+                raise ApiError(f"远端返回非法路径：{rel}")
+            if rel != SKILL_MD and rel.endswith(f"/{SKILL_MD}"):
+                raise ApiError(f"远端技能目录不能包含嵌套的 {SKILL_MD}：{rel}")
+            if rel == "SKILL.md" and len(parts) != 1:
+                raise ApiError(f"远端 SKILL.md 必须位于技能根目录：{rel}")
+            path_key = unicodedata.normalize("NFC", rel).casefold()
+            previous = normalized_paths.get(path_key)
+            if previous is not None and previous != rel:
+                raise ApiError(f"远端文件路径在本机文件系统上可能重合：{previous} / {rel}")
+            normalized_paths[path_key] = rel
+            meta = file_meta.get(rel)
+            if meta is None:
+                raise ApiError(f"预览缺少文件摘要：{rel}")
+            if int(meta.get("size") or 0) != len(data):
+                raise ApiError(f"远端文件大小与预览不一致：{rel}")
+            if str(meta.get("sha256") or "") != hashlib.sha256(data).hexdigest():
+                raise ApiError(f"远端文件摘要与预览不一致：{rel}")
+            path_parts[rel] = parts
+        normalized_path_keys = set(normalized_paths)
+        for path_key, rel in normalized_paths.items():
+            components = path_key.split("/")
+            if any("/".join(components[:index]) in normalized_path_keys
+                   for index in range(1, len(components))):
+                raise ApiError(f"远端文件与目录路径在本机文件系统上冲突：{rel}")
+        if "SKILL.md" not in file_meta:
+            raise ApiError("导入目录必须包含根 SKILL.md")
+        for rel, data in preview["blobs"].items():
+            target = temp_dir / Path(*path_parts[rel])
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            written += 1
+        if written == 0 or not (temp_dir / SKILL_MD).is_file():
+            raise ApiError("导入目录必须包含根 SKILL.md")
+        expected_paths = set(file_meta)
+        actual_paths = {
+            f.relative_to(temp_dir).as_posix() for f in iter_skill_files(temp_dir)
+        }
+        if actual_paths != expected_paths:
+            raise ApiError("导入文件落盘后与预览清单不一致")
+        for rel in expected_paths:
+            target = temp_dir / Path(*PurePosixPath(rel).parts)
+            if target.read_bytes() != preview["blobs"][rel]:
+                raise ApiError(f"导入文件落盘校验失败：{rel}")
+        # 目录名即技能名：与 frontmatter.name 不一致会被 verify 判 FAIL，
+        # 且技能库行简介也取不到，故落盘后即校验，不达标不登记
+        fm, err = parse_frontmatter(temp_dir)
+        if fm is None:
+            raise ApiError(f"导入的 SKILL.md frontmatter 不合规：{err}")
+        fm_name = str(fm.get("name") or "").strip()
+        if fm_name != name:
+            raise ApiError(f"frontmatter name（{fm_name or '缺失'}）与导入名称（{name}）不一致："
+                           "本工具不改写技能内容，请把导入名称改成一致后重试")
+        if not str(fm.get("description") or "").strip():
+            raise ApiError("导入的 SKILL.md frontmatter 缺少 description")
+        warnings = scan_skill(temp_dir)
+        failures = [w for w in warnings if w.get("level") == "FAIL"]
+        if failures:
+            details = "；".join(f"{w.get('file', '')} {w.get('rule', '')}" for w in failures)
+            raise ApiError(f"远程技能安全扫描失败，已阻止导入：{details}")
+        if dest.exists() or dest.is_symlink():
+            raise ApiError(f"skills/{name} 在导入期间已出现，请重新预览并重试")
+        os.replace(temp_dir, dest)
+        created_dest = True
+        # 登记 catalog：技能库、归档与 verify 都以 catalog 为账本，
+        # 不登记则导入结果不进任何页签。不声明 platforms：导入只进仓，下发另行决定。
+        catalog = copy.deepcopy(catalog_before)
+        tx.catalog_set(name, None)
+        imported_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+        catalog["skills"][name] = {
+            "source_platform": "remote",
+            "platforms": [],
+            "tools_required": [],
+            "depends_on": [],
+            "description_zh": "",
+            "adopted_at": imported_at,
+            "imported_at": imported_at,
+            "imported_from": preview["source"],
+        }
+        catalog_saved = True
+        save_catalog(catalog)
+        tx.commit(f"导入 {name}（{written} 个文件）")
+    except Exception as exc:
+        cleanup_errors: list[str] = []
+        # 失败路径必须清理临时目录和目标目录，避免失败导入变成半成品技能。
+        for path in (temp_dir, dest if created_dest else None):
+            if path is None:
+                continue
+            try:
+                if path.is_symlink() or path.is_file():
+                    path.unlink(missing_ok=True)
+                elif path.is_dir():
+                    shutil.rmtree(path)
+            except OSError as cleanup_exc:
+                cleanup_errors.append(f"删除 {path.name} 失败：{cleanup_exc}")
+        if catalog_saved:
+            try:
+                save_catalog(catalog_before)
+            except Exception as cleanup_exc:
+                cleanup_errors.append(f"恢复 catalog 失败：{cleanup_exc}")
+        undo_path = SKILLS_DIR.parent / "registry" / "undo" / f"{tx.id}.json"
+        try:
+            undo_path.unlink(missing_ok=True)
+        except OSError as cleanup_exc:
+            cleanup_errors.append(f"清理 undo 记录失败：{cleanup_exc}")
+        if cleanup_errors:
+            raise ApiError(f"导入失败且清理未完成：{exc}；{'；'.join(cleanup_errors)}", 500) from exc
+        raise
+    if temp_dir.exists() or temp_dir.is_symlink():
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    audit_warning = ""
+    try:
+        audit("import", slug=name, platform="canonical",
+              source=preview["source"], files=written, via="web", undo=tx.id,
+              security_warnings=sum(1 for w in warnings if w["level"] == "WARN"))
+    except OSError as exc:
+        audit_warning = f"技能已导入且可撤销，但审计日志写入失败：{exc}"
     return {"ok": True, "name": name, "files": written,
-            "description": preview["description"]}
+            "description": preview["description"],
+            "security_warnings": warnings,
+            "audit_warning": audit_warning}
 
 
 def _list_undo() -> dict[str, Any]:
