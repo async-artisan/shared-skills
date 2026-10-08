@@ -1,6 +1,6 @@
 ---
 name: skillsync-roadmap-dev
-description: 按 roadmap 逐项开发 shared-skills 仓 skillsync 工具的功能。当用户要求继续路线图、开发 skillsync 新功能或在 shared-skills 仓实现 doctor/web/CLI 功能时使用。不用于 nzERP 四仓或其他项目。
+description: 按 roadmap 逐项开发 shared-skills 仓 skillsync 工具的功能。当用户要求继续路线图、开发 skillsync 新功能或在 shared-skills 仓实现 doctor/web/CLI 功能时使用。不用于其他项目。
 ---
 
 # skillsync 路线图功能开发

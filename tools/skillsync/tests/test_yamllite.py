@@ -244,7 +244,7 @@ class TestRealWorld:
     def test_catalog_snippet(self):
         text = """version: 1
 skills:
-  aihot:
+  demo-skill:
     source_platform: workbuddy
     platforms:
       - workbuddy
@@ -255,9 +255,9 @@ skills:
 """
         result = parse(text)
         assert result["version"] == 1
-        assert "aihot" in result["skills"]
-        assert result["skills"]["aihot"]["source_platform"] == "workbuddy"
-        assert result["skills"]["aihot"]["platforms"] == ["workbuddy"]
-        assert result["skills"]["aihot"]["tools_required"] == []
-        assert result["skills"]["aihot"]["description_zh"] == ""
-        assert result["skills"]["aihot"]["adopted_at"] == "2026-10-07T09:04:15+08:00"
+        assert "demo-skill" in result["skills"]
+        assert result["skills"]["demo-skill"]["source_platform"] == "workbuddy"
+        assert result["skills"]["demo-skill"]["platforms"] == ["workbuddy"]
+        assert result["skills"]["demo-skill"]["tools_required"] == []
+        assert result["skills"]["demo-skill"]["description_zh"] == ""
+        assert result["skills"]["demo-skill"]["adopted_at"] == "2026-10-07T09:04:15+08:00"
