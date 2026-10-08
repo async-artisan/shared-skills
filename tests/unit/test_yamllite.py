@@ -32,6 +32,10 @@ class TestScalar(unittest.TestCase):
         # 含特殊字符的裸字符串不会被当数字解析
         self.assertEqual(parse('k: "3.14pi"')["k"], "3.14pi")
 
+    def test_single_quote_escape(self):
+        # YAML 单引号字符串里 `''` 表示一个 `'`
+        self.assertEqual(parse("k: 'it''s a test'")["k"], "it's a test")
+
     def test_inline_list(self):
         self.assertEqual(parse("k: [a, b, c]")["k"], ["a", "b", "c"])
         self.assertEqual(parse("k: [1, 2, 3]")["k"], [1, 2, 3])

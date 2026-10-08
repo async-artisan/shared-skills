@@ -127,6 +127,25 @@ class TestParseFrontmatter(unittest.TestCase):
         self.assertEqual(data["name"], "alpha")
         self.assertEqual(data["description"], "测试技能 alpha")
 
+    def test_folded_block_scalar(self):
+        # yamllite 不支持 `>-` 块标量；parse_frontmatter 内部需先预处理。
+        md = (
+            "---\n"
+            "name: alpha\n"
+            "description: >-\n"
+            "  完美复刻蒸馏技能 v5.0.0：第一行\n"
+            "  第二行继续\n"
+            "---\n"
+        )
+        self._write(md)
+        data, err = parse_frontmatter(self.dir)
+        self.assertIsNone(err)
+        self.assertEqual(data["name"], "alpha")
+        self.assertEqual(
+            data["description"],
+            "完美复刻蒸馏技能 v5.0.0：第一行 第二行继续",
+        )
+
     def test_missing_skill_md(self):
         data, err = parse_frontmatter(self.dir)
         self.assertIsNone(data)

@@ -26,6 +26,46 @@ IGNORE_FILES = {".DS_Store"}
 IGNORE_DIRS = {"__pycache__", ".git"}
 
 _DESC_KEY_RE = re.compile(r"^(description):\s*(.*)$")
+# 顶层块标量：`key: >-` / `>` / `|-` / `|`（可选 chomping 指示 [-+]）
+_BLOCK_SCALAR_RE = re.compile(
+    r"^(?P<indent>\s*)(?P<key>[A-Za-z_][\w-]*)\s*:\s*(?P<marker>[>|])(?P<chomp>[-+]?)\s*$"
+)
+
+
+def _normalize_block_scalars(block: str) -> str:
+    """把 `key: >-` / `>` / `|-` / `|` 块标量展开为单行 quoted 字符串。
+
+    yamllite 不支持块标量，但 SKILL.md 的 description 等长文本字段普遍
+    使用该写法。在交给 yamllite 之前先预处理为单行单引号字符串，与
+    extract_description 行为基本一致（folded/literal 都用空格连接，因
+    yamllite 单/双引号均不支持反斜杠转义，无法在 quoted 字符串里保留换行）。
+    """
+    lines = block.splitlines()
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        m = _BLOCK_SCALAR_RE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        indent = m.group("indent")
+        key = m.group("key")
+        chunk: list[str] = []
+        j = i + 1
+        while j < len(lines):
+            ln = lines[j]
+            if not ln.strip() or ln[:1] in (" ", "\t"):
+                chunk.append(ln.strip())
+                j += 1
+            else:
+                break
+        text = " ".join(chunk).strip()
+        # yamllite 不支持反斜杠转义；YAML 单引号用 `''` 表示一个 `'`。
+        escaped = text.replace("'", "''")
+        out.append(f"{indent}{key}: '{escaped}'")
+        i = j
+    return "\n".join(out)
 
 
 def extract_description(md_text: str) -> str:
@@ -217,6 +257,7 @@ def parse_frontmatter(skill_dir: Path) -> tuple[dict[str, Any] | None, str | Non
     if end is None:
         return None, "SKILL.md frontmatter 缺少结束分隔符 ---"
     block = "\n".join(lines[1:end])
+    block = _normalize_block_scalars(block)
     try:
         data = yamllite.parse(block)
     except yamllite.YamlLiteError as exc:

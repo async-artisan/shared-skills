@@ -65,7 +65,11 @@ def _parse_scalar(raw: str) -> Any:
     if s == "":
         return None
     if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
-        return s[1:-1]
+        inner = s[1:-1]
+        if s[0] == "'":
+            # YAML 单引号字符串：`''` 是 `'` 的转义
+            inner = inner.replace("''", "'")
+        return inner
     low = s.lower()
     if low in ("true", "yes"):
         return True
