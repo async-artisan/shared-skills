@@ -23,8 +23,6 @@ registry/translate-cache.json
 .playwright-cli/
 output/
 
-# 本机安装/采纳的个人 skills 不入库——只保留项目官方 skills
-# 新增官方 skill 时用 git add -f skills/<slug>/ 强制跟踪
+# skills/ 是个人技能库，全部不入库（本仓库只开源 skillsync 工具与骨架）
 skills/*
 !skills/.gitkeep
-!skills/skill-finder-cn/

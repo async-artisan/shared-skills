@@ -1,32 +1,33 @@
-# NOTICE — 第三方内容来源与许可声明
+# NOTICE — 许可范围与内容边界
 
-本仓库主体（`tools/skillsync/`、`registry/`、`bin/`、`platform/` 等骨架代码）采用 [MIT License](LICENSE) © 2026 yesgooo_qjj。
+## 仓库定位
 
-`skills/` 子树下的每个 `SKILL.md` 是独立的内容作品。除本仓库原创外，部分技能系从第三方平台（ClawHub、WorkBuddy、Claude、Codex 等）采纳而来，按其原始许可在本仓库继续以 MIT 兼容方式分发。第三方内容清单如下。
+本仓库开源的是 **skillsync 工具与仓库骨架**（一个跨平台 Agent Skill 的本地管理/对账/同步工具）。`skills/` 目录是使用者的**个人技能库**，属于私有内容，不随本仓库开源。
 
-## 第三方技能清单
+## 许可覆盖范围
 
-| 技能 slug | 原始来源 | 原作者 / Publisher | 原始许可 | 备注 |
-| --- | --- | --- | --- | --- |
-| skill-finder-cn | [ClawHub](https://clawhub.ai/guohongbin-git/skills/skill-finder-cn) | `guohongbin-git`（SKILL.md 内署名「赚钱小能手」） | MIT-0 | 采纳自 ClawHub 市场；保留原始 `skill-card.md` 内的 publisher 与许可声明 |
+[MIT License](LICENSE) 仅适用于以下随仓库分发的代码与配置：
 
-## 商标指示性使用声明
+- `tools/skillsync/` — skillsync CLI、Web 控制台及其测试
+- `bin/` — 启动包装脚本
+- `platform/`、`manifests/`、`.claude-plugin/`、`.codex-plugin/`、`.agents/` — 平台插件骨架与清单模板
+- `registry/platforms.example.yaml` — 自定义平台示例配置
+- 仓库根的文档（`README.md`、`CONTRIBUTING.md` 等）
 
-下列技能 slug 涉及第三方商标，仅作描述性、指示性使用，本仓库与商标所有者无任何隶属或背书关系：
+## 不授权的内容
 
-- `figma` — Figma 是 Figma Inc. 的商标
-- `chrome-devtools` — Chrome 与 Chrome DevTools 是 Google LLC 的商标
-- `electron` — Electron 是 GitHub/OpenJS Foundation 的商标；技能内提及的 VS Code、Slack、Discord、Figma、Notion、Spotify 等名称分属各自所有者的商标
-- `playwright` — Playwright 是 Microsoft 的商标
+以下内容属于使用者私有，**MIT 许可不及于它们，不授予任何权利**：
 
-## 原创技能
+- `skills/` — canonical 技能实体（每个 `skills/<slug>/SKILL.md` 及配套文件），被 `.gitignore` 排除，不随仓库分发
+- `registry/catalog.yaml` — 个人技能台账（仅含 slug、平台清单、时间戳等元数据，不含技能内容）；随仓库提交仅用于使用者个人多机同步，他人 clone 后应替换为自己的台账
+- `registry/state.yaml`、`registry/audit.logl`、`registry/undo/`、`registry/translate-cache.json` — 本机状态、留痕与缓存，不入库
 
-未出现在上述清单中的技能（如 `axis-deep-research`、`bidirectional-steelman`、`brainstorming`、`commit-cn`、`first-principles-adversarial-review`、`flowchart`、`frontend-design`、`frontend-skill`、`perfectly-replicate-writing-skills`、`project-handoff`、`test-driven-development`、`ui-ux-pro-max`、`webapp-testing` 等）为仓库原创作品，按本仓库 [MIT License](LICENSE) 授权。
+若你从其他渠道（如 ClawHub、各平台市场）获得技能内容，其使用须遵循对应来源的许可条款，与本仓库无关。
+
+## 第三方商标
+
+工具文档中可能以指示性方式提及 Codex、Claude、WorkBuddy、TRAE、ClawHub 等第三方产品名称，这些名称分属各自所有者的商标，本仓库与上述方无隶属或背书关系。
 
 ## 贡献者
 
-贡献者署名通过 git 提交记录保留。提交 PR 即视为同意以与本仓库一致的 MIT 许可发布其贡献内容。
-
-## 更新本文件
-
-新增采纳第三方技能时，**必须**同步在本文件「第三方技能清单」中登记来源、作者与许可；否则 CI/PR 不得合并。
+贡献者署名通过 git 提交记录保留。提交 PR 即视为同意其对**工具代码**的贡献按 MIT 许可发布；技能内容不经过本仓库的 PR 流程。
