@@ -9,7 +9,7 @@ description = "跨平台 Agent Skill 单仓同步工具"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
-authors = [{ name = "yesgooo_qjj" }]
+authors = [{ name = "async-artisan" }]
 keywords = ["agent", "skills", "sync", "cli", "codex", "claude"]
 classifiers = [
     "Development Status :: 3 - Alpha",

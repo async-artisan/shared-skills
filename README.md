@@ -206,7 +206,7 @@ E2E 测试（带真实 CLI subprocess + 浏览器自动化）放在 `/tmp/skills
 
 ## 许可证
 
-[MIT License](LICENSE) © 2026 yesgooo_qjj。许可仅覆盖 skillsync 工具代码与仓库骨架；`skills/` 个人技能库不随仓库开源，详见 [NOTICE.md](NOTICE.md)。
+[MIT License](LICENSE) © 2026 async-artisan。许可仅覆盖 skillsync 工具代码与仓库骨架；`skills/` 个人技能库不随仓库开源，详见 [NOTICE.md](NOTICE.md)。
 
 ## 安全报告
 
