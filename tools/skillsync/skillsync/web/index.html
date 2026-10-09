@@ -320,6 +320,77 @@
   .pg.ellipsis { background: none; border: none; cursor: default; }
   .pg:disabled { opacity: .4; cursor: not-allowed; }
 
+  /* ---------- 技能库卡片与视图控制 ---------- */
+  .library-controls {
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 0 30px 14px; border-bottom: 1px solid var(--line);
+  }
+  .library-filters, .library-view-switch { display: flex; align-items: center; gap: 6px; }
+  .library-filter {
+    min-height: 30px; padding: 6px 11px; color: var(--muted); background: transparent;
+    border-color: transparent; font-size: 11px;
+  }
+  .library-filter:hover { color: var(--ink); border-color: var(--line); background: var(--panel); }
+  .library-filter.active { color: var(--accent); border-color: var(--accent-line, var(--green-line)); background: var(--accent-soft); }
+  .library-view-switch { padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
+  .library-view-switch button { width: 30px; height: 28px; padding: 0; border: 0; color: var(--muted); background: transparent; }
+  .library-view-switch button.active { color: var(--accent); background: var(--accent-soft); }
+  .library-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+    gap: 12px; padding: 2px 30px 24px;
+  }
+  .skill-card {
+    min-width: 0; display: flex; flex-direction: column; padding: 17px;
+    border: 1px solid var(--line); border-radius: 9px; background: var(--panel);
+    transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+  }
+  .skill-card:hover { border-color: var(--line-strong); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .skill-card-head { display: flex; align-items: flex-start; gap: 11px; min-width: 0; }
+  .skill-mark {
+    width: 38px; height: 38px; flex: none; display: grid; place-items: center;
+    border: 1px solid var(--green-line); border-radius: 8px; background: var(--green-soft);
+    color: var(--green); font: 600 12px var(--mono); letter-spacing: -.04em;
+  }
+  .skill-card-title { min-width: 0; flex: 1; }
+  .skill-card-title strong { display: block; overflow: hidden; color: var(--ink); font: 600 14px/1.35 var(--mono); text-overflow: ellipsis; white-space: nowrap; }
+  .skill-card-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .skill-card-meta .st, .skill-card-meta .badge { font-size: 9px; }
+  .skill-card-desc {
+    display: -webkit-box; min-height: 40px; margin: 15px 0 13px; overflow: hidden;
+    color: var(--muted); font-size: 12px; line-height: 1.65; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  }
+  .skill-card-targets { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-height: 25px; margin-top: auto; }
+  .skill-card-target-label { margin-right: 2px; color: var(--faint); font: 9px var(--mono); letter-spacing: .08em; }
+  .skill-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .skill-card-actions .row-actions { gap: 5px; }
+  .skill-card-actions button { padding: 6px 9px; font-size: 11px; }
+  .library-list { padding: 0 30px 20px; }
+  .library-list .tbl-wrap { padding: 0; }
+  .library-list tbody td { background: var(--panel); }
+  .library-list tbody tr td:first-child { border-left: 1px solid var(--line); }
+  .library-list tbody tr td:last-child { border-right: 1px solid var(--line); }
+  .library-list tbody tr:first-child td:first-child { border-top-left-radius: 6px; }
+  .library-list tbody tr:first-child td:last-child { border-top-right-radius: 6px; }
+  @media (max-width: 860px) {
+    .library-controls { padding-inline: 20px; }
+    .library-grid, .library-list { padding-left: 20px; padding-right: 20px; }
+  }
+  @media (max-width: 720px) {
+    .library-controls { align-items: flex-start; padding: 0 16px 11px; }
+    .library-filters { flex-wrap: wrap; gap: 3px; }
+    .library-filter { padding-inline: 8px; }
+    .library-grid, .library-list { padding-left: 16px; padding-right: 16px; }
+  }
+  @media (max-width: 460px) {
+    .library-controls { gap: 6px; }
+    .library-view-switch { flex: none; }
+    .library-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skill-card { transition: none; }
+    .skill-card:hover { transform: none; }
+  }
+
   /* ---------- 状态栏 ---------- */
   .statusbar { flex: none; min-height: 32px; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; padding: 0 20px; gap: 14px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .03em; }
   :where(button, input, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -801,6 +872,19 @@
       <span class="filter-info" id="filterInfo"></span>
     </div>
 
+    <div class="library-controls" id="libraryControls" hidden>
+      <div class="library-filters" role="group" aria-label="技能库筛选">
+        <button class="library-filter active" data-library-filter="all" aria-pressed="true">全部</button>
+        <button class="library-filter" data-library-filter="registered" aria-pressed="false">已登记</button>
+        <button class="library-filter" data-library-filter="unregistered" aria-pressed="false">未登记</button>
+        <button class="library-filter" data-library-filter="archived" aria-pressed="false">已归档</button>
+      </div>
+      <div class="library-view-switch" role="group" aria-label="技能库布局">
+        <button id="libraryCardsBtn" class="active" aria-label="卡片视图" aria-pressed="true" title="卡片视图">▦</button>
+        <button id="libraryListBtn" aria-label="列表视图" aria-pressed="false" title="列表视图">☷</button>
+      </div>
+    </div>
+
     <div class="panel" id="panel" role="tabpanel" tabindex="0" aria-labelledby="tab-library" aria-live="polite"></div>
 
     <div class="statusbar">
@@ -900,6 +984,8 @@ const STATUS_TEXT = {
   "missing-canonical": "缺 canonical", "bad-frontmatter": "元数据异常", "ignored": "已忽略"
 };
 let DATA = null;
+let libraryFilter = "all";
+let libraryView = localStorage.getItem("skillsync-library-view") === "list" ? "list" : "cards";
 // 归档集合：catalog.archived 的技能（其异常/待采纳行不催办，可在技能库恢复）
 const ARCH = () => new Set((DATA && DATA.archived) || []);
 let pageSize = 15;
@@ -1093,7 +1179,7 @@ window.onPlatform = function (v) {
   render();
 };
 window.clearFilters = function () {
-  query = ""; platformFilter = "all";
+  query = ""; platformFilter = "all"; libraryFilter = "all";
   $("#searchBox").value = ""; $("#platformSel").value = "all";
   render();
 };
@@ -1108,6 +1194,7 @@ function matchRow(f) {
 
 function render() {
   const tab = curTab();
+  $("#libraryControls").hidden = tab !== "library";
   if (tab === "history") { renderCards(); renderHistoryTab(); return; }
   const g = groupByStatus();
   renderCards();
@@ -1124,7 +1211,7 @@ function render() {
   const pend = pendingRows.filter(matchRow);
   const prob = problemRows.filter(matchRow);
   const man = managedRows.filter(matchRow);
-  const lib = allLib.filter(matchLibraryRow);
+  const lib = allLib.filter(matchLibraryRow).filter(matchesLibraryFilter);
   const tabCounts = {
     pending: pendingRows.length, problems: problemRows.length,
     managed: managedRows.length, library: allLib.length
@@ -1135,11 +1222,13 @@ function render() {
   const totals = { pending: pendingRows.length, problems: problemRows.length,
                    managed: managedRows.length, library: allLib.length };
   const shown = { pending: pend, problems: prob, managed: man, library: lib }[tab];
+  const libraryFilterActive = tab === "library" && libraryFilter !== "all";
+  const activeFilters = filtersActive() || libraryFilterActive;
   $("#filterInfo").textContent =
-    filtersActive() ? `FILTER ${shown.length} / ${totals[tab]}` : "";
-  $("#clearFilter").style.display = filtersActive() ? "" : "none";
+    activeFilters ? `FILTER ${shown.length} / ${totals[tab]}` : "";
+  $("#clearFilter").style.display = activeFilters ? "" : "none";
   // 有数据但被筛没：显示筛选空态（与真正无数据的空态区分）
-  if (filtersActive() && !shown.length && totals[tab]) {
+  if (activeFilters && !shown.length && totals[tab]) {
     $("#panel").innerHTML = `<div class="empty"><div class="glyph">⌕</div>
       <div class="et">没有匹配的技能</div>
       <div class="es">调整关键词或平台筛选，或 <button onclick="clearFilters()">清除筛选</button></div></div>`;
@@ -1297,7 +1386,7 @@ function libraryRows() {
   const registered = new Set(DATA.catalog_slugs || []);
   const canonical = new Set(Object.keys(DATA.descriptions || {}));
   const slugs = new Set(okFinds.map(f => f.name));
-  for (const slug of registered) if (canonical.has(slug)) slugs.add(slug);
+  for (const slug of canonical) slugs.add(slug);
   return [...slugs].sort().map(slug =>
     ({ slug, plats: platsOf(slug), desc: (DATA.descriptions || {})[slug] || "",
        archived: ARCH().has(slug), registered: registered.has(slug) }));
@@ -1311,16 +1400,74 @@ function matchLibraryRow(r) {
   return query.split(/\s+/).every(t => hay.includes(t));
 }
 
+function matchesLibraryFilter(r) {
+  if (libraryFilter === "registered") return r.registered && !r.archived;
+  if (libraryFilter === "unregistered") return !r.registered;
+  if (libraryFilter === "archived") return r.archived;
+  return true;
+}
+
+function syncLibraryControls() {
+  document.querySelectorAll("[data-library-filter]").forEach(button => {
+    const active = button.dataset.libraryFilter === libraryFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  const cards = libraryView === "cards";
+  $("#libraryCardsBtn").classList.toggle("active", cards);
+  $("#libraryListBtn").classList.toggle("active", !cards);
+  $("#libraryCardsBtn").setAttribute("aria-pressed", String(cards));
+  $("#libraryListBtn").setAttribute("aria-pressed", String(!cards));
+}
+
+function setLibraryView(view) {
+  libraryView = view === "list" ? "list" : "cards";
+  localStorage.setItem("skillsync-library-view", libraryView);
+  render();
+}
+
 function renderLibrary(rows) {
-  if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
+  syncLibraryControls();
+  if (!rows.length) {
+    const filtered = libraryFilter !== "all" || filtersActive();
+    $("#panel").innerHTML = filtered
+      ? `<div class="empty"><div class="glyph">⌕</div><div class="et">没有匹配的技能</div><div class="es">调整筛选条件，或 <button onclick="clearFilters()">清除筛选</button></div></div>`
+      : emptyBlock("———", "技能库为空", "CANONICAL EMPTY");
+    return;
+  }
   const pg = pageSlice(rows, "library");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table class="library-table"><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
-    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ") || `<span class="muted" style="font-size:12.5px">未下发到任何平台</span>`}</td>
+  if (libraryView === "cards") {
+    $("#panel").innerHTML = `<div class="library-grid">${pg.items.map(r => {
+      const mark = esc(r.slug.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "SK");
+      const state = r.archived ? `<span class="st st-archived">已归档</span>`
+        : r.registered ? `<span class="st st-managed-ok">已登记</span>`
+        : `<span class="st st-unregistered">未登记 catalog</span>`;
+      const targets = r.plats.length ? r.plats.map(badge).join("")
+        : `<span class="muted" style="font-size:11px">尚未下发</span>`;
+      return `<article class="skill-card">
+        <div class="skill-card-head"><span class="skill-mark" aria-hidden="true">${mark}</span>
+          <div class="skill-card-title"><strong title="${esc(r.slug)}">${esc(r.slug)}</strong><div class="skill-card-meta">${state}</div></div>
+        </div>
+        <div class="skill-card-desc" title="${esc(r.desc || "暂无简介")}">${esc(r.desc || "暂无简介")}</div>
+        <div class="skill-card-targets"><span class="skill-card-target-label">TARGETS</span>${targets}</div>
+        <div class="skill-card-actions"><span class="muted" style="font:9px var(--mono)">CANONICAL</span>
+          <div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看详情</button>${r.registered
+            ? (r.archived
+              ? `<button onclick="archiveOne(${jstr(r.slug)}, false)">恢复</button>`
+              : `<button onclick="archiveOne(${jstr(r.slug)}, true)">归档</button>`)
+            : ""}</div>
+        </div>
+      </article>`;
+    }).join("")}</div>${pagerBar("library", pg)}`;
+    return;
+  }
+  $("#panel").innerHTML = `<div class="library-list"><div class="tbl-wrap"><table class="library-table"><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
+    <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${!r.registered ? ` <span class="st st-unregistered">未登记</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ") || `<span class="muted" style="font-size:12.5px">未下发到任何平台</span>`}</td>
       <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button>${r.registered
         ? (r.archived
           ? `<button onclick="archiveOne(${jstr(r.slug)}, false)">取消归档</button>`
           : `<button onclick="archiveOne(${jstr(r.slug)}, true)">归档</button>`)
-        : `<span class="muted" style="font-size:12.5px">未登记 catalog</span>`}</div></td></tr>`).join("")}</tbody></table></div>${pagerBar("library", pg)}`;
+        : ""}</div></td></tr>`).join("")}</tbody></table></div></div>${pagerBar("library", pg)}`;
 }
 
 // ---- 操作历史（registry/audit.logl 的结构化留痕，最新在前） ----
@@ -1812,6 +1959,16 @@ $("#tabs").addEventListener("keydown", e => {
   e.preventDefault(); tabs[next].focus(); tabs[next].click();
 });
 updateTabsHint();
+$("#libraryControls").addEventListener("click", e => {
+  const filter = e.target.closest("[data-library-filter]");
+  if (filter) {
+    libraryFilter = filter.dataset.libraryFilter;
+    pagePos.library = 1;
+    render();
+  }
+});
+$("#libraryCardsBtn").onclick = () => setLibraryView("cards");
+$("#libraryListBtn").onclick = () => setLibraryView("list");
 
 refresh().catch(e => toast("初始扫描失败：" + e.message, "err"));
 </script>
