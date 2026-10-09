@@ -799,6 +799,13 @@
   /* Keep badge cells as table cells; flex on a TD breaks column sizing. */
   body.light .badge, body.light .st { line-height: 1.35; }
   body.light .detail { color: #748379; }
+  /* 表格行以技能简介为主高度；平台标签、状态和操作控件在行内垂直居中。 */
+  .pending-table tbody td:first-child, .pending-table tbody td:last-child,
+  .problem-table tbody td:first-child, .problem-table tbody td:last-child,
+  .managed-table tbody td:first-child, .managed-table tbody td:last-child,
+  .library-table tbody td:nth-child(2), .library-table tbody td:last-child { vertical-align: middle; }
+  .row-actions { align-items: center; }
+  .badge, .st { vertical-align: middle; }
   body.light .pager-bar { margin: 0 28px 0 30px; padding: 11px 14px; background: #fff; border: 1px solid var(--line); }
   body.light .statusbar { background: #eaf2ec; color: #66806f; border-top: 1px solid #d7e4da; }
   @media (max-width: 720px) {
