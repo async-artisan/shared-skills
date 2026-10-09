@@ -217,14 +217,23 @@
   .syncbox .hint { color: var(--muted); font-size: 12.5px; margin-left: auto; }
   .syncbox .hint code { font-family: var(--mono); color: var(--blue); font-size: 12px; background: var(--panel-2); padding: 1px 6px; border-radius: 4px; }
   .syncbox .hint b { color: var(--amber); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+  .sync-scope { font-family: var(--mono); font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+  .sync-scope b { color: var(--ink-soft); font-weight: 600; }
+  .syncbox .sync-write { background: var(--panel-2); color: var(--ink); border-color: var(--line-strong); }
+  .syncbox .sync-write:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
   .tabs-hint { flex: none; padding: 9px 24px; background: var(--bg-deep); border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+  .page-summary { flex: none; display: flex; align-items: baseline; gap: 10px; padding: 10px 24px 8px; background: var(--panel); color: var(--ink-soft); border-bottom: 1px solid var(--line); }
+  .page-summary strong { color: var(--ink); font-size: 15px; }
+  .page-summary span { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+  .page-summary .summary-alert { color: var(--amber); }
+  .page-summary .summary-danger { color: var(--red); }
   .tabs-hint::before { content: "›"; color: var(--accent); margin-right: 8px; font-weight: 700; }
 
   /* ---------- 工具栏 ---------- */
   .toolbar { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
   .toolbar input[type="search"] {
-    flex: 1; min-width: 160px;
+    flex: 1; min-width: 0;
     font: 14px var(--mono); color: var(--ink);
     background: var(--bg-deep);
     border: 1px solid var(--line); border-radius: var(--radius-sm);
@@ -257,7 +266,10 @@
   tbody tr:hover { background: var(--panel-2); }
   tbody tr strong { color: var(--ink); font-weight: 600; font-size: 14px; }
   .detail { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin-top: 5px; }
-  .detail.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .detail.clamp1, .detail.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .detail.clamp1 { -webkit-line-clamp: 1; }
+  .detail.clamp2 { -webkit-line-clamp: 2; }
+  .secondary-detail { font-size: 11.5px; margin-top: 3px; }
 
   /* ---------- 徽章 / 状态药丸 ---------- */
   .badge {
@@ -285,7 +297,8 @@
   .st-archived { color: var(--muted); background: var(--panel-2); border-color: var(--line); }
   .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .row-actions button { padding: 5px 11px; font-size: 12.5px; }
-  .cell-badges { display: flex; gap: 5px; flex-wrap: wrap; }
+  .cell-badges { display: table-cell; vertical-align: middle; white-space: nowrap; }
+  .cell-badges .badge { display: inline-block; margin: 0 4px 4px 0; vertical-align: middle; }
 
   /* ---------- 空态 / 提示 / 警告 ---------- */
   .empty { padding: 64px 24px; text-align: center; color: var(--muted); }
@@ -308,7 +321,10 @@
   .pg:disabled { opacity: .4; cursor: not-allowed; }
 
   /* ---------- 状态栏 ---------- */
-  .statusbar { flex: none; height: 32px; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; padding: 0 20px; gap: 14px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .03em; }
+  .statusbar { flex: none; min-height: 32px; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; padding: 0 20px; gap: 14px; font-family: var(--mono); font-size: 11.5px; letter-spacing: .03em; }
+  :where(button, input, select, summary):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #toasts { pointer-events: none; }
+  #toasts .toast { pointer-events: auto; }
   .statusbar .sep { opacity: .38; }
   .statusbar .sb-right { margin-left: auto; display: flex; gap: 12px; opacity: .92; }
   /* ---------- 模态框 ---------- */
@@ -380,11 +396,36 @@
     .syncbox, .toolbar, .tabs-hint, .meta-line, .warn, .pager-bar { padding-left: 16px; padding-right: 16px; }
   }
   @media (max-width: 720px) {
+    header { height: auto; min-height: 60px; padding-top: 10px; padding-bottom: 10px; flex-wrap: wrap; }
+    .wm-name { font-size: 17px; }
+    .chip { order: 5; flex: 1 1 100%; max-width: none; }
+    .scan-time { display: none; }
     .activitybar { width: 60px; }
     .tabs { padding: 0 6px; }
     .tabs button { font-size: 0; gap: 4px; padding: 11px 4px 9px; }
     .tabs button::before { font-size: 20px; }
-    .wm-name { font-size: 17px; }
+    .syncbox { align-items: flex-start; padding-top: 13px; padding-bottom: 13px; gap: 10px 14px; }
+    .sync-label { flex: 1 1 100%; }
+    .sync-actions { flex: 1 1 auto; }
+    .sync-scope, .syncbox .hint { flex: 1 1 100%; margin-left: 0; white-space: normal; }
+    .toolbar { display: grid; grid-template-columns: 1fr auto; padding-top: 10px; padding-bottom: 10px; }
+    .toolbar input[type="search"] { grid-column: 1 / -1; width: 100%; }
+    .toolbar select { min-width: 0; width: 100%; }
+    .toolbar #importBtn, .toolbar #clearFilter { width: 100%; }
+    .panel { overflow-x: auto; }
+    table { min-width: 680px; }
+    .statusbar { padding: 0 12px; gap: 8px; font-size: 10px; overflow: hidden; white-space: nowrap; }
+    .statusbar > .sep, .statusbar > span:nth-child(3), .statusbar > span:nth-child(4), .sb-right { display: none; }
+    #toasts { left: 12px; right: 12px; bottom: 42px; }
+  }
+  @media (max-width: 460px) {
+    .activitybar { width: 52px; }
+    .tabs { padding: 0 3px; }
+    .sync-actions { width: 100%; }
+    .sync-actions button { flex: 1; }
+    .toolbar { grid-template-columns: 1fr; }
+    .toolbar #importBtn, .toolbar #clearFilter { grid-column: auto; }
+    table { min-width: 620px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -430,6 +471,275 @@
     --shadow: 0 4px 16px rgba(30,26,20,.06);
     --shadow-lg: 0 14px 40px rgba(30,26,20,.10);
   }
+
+  /* Skill Hub / night operations desk */
+  :root {
+    --bg: #101512;
+    --bg-deep: #0b100d;
+    --panel: #151d18;
+    --panel-2: #1b2620;
+    --raise: #202d26;
+    --ink: #e8f0e9;
+    --ink-soft: #bac8bd;
+    --muted: #84958a;
+    --faint: #58685e;
+    --line: #25332a;
+    --line-strong: #35483b;
+    --accent: #8bd6a8;
+    --accent-soft: #1d3828;
+    --accent-ink: #102016;
+    --amber: #e5b76d;
+    --amber-fill: #e5b76d;
+    --amber-soft: rgba(229,183,109,.12);
+    --amber-line: rgba(229,183,109,.32);
+    --mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --disp: "Fraunces", "Songti SC", Georgia, serif;
+    --sans: "Manrope", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  body {
+    background:
+      radial-gradient(ellipse at 82% -20%, rgba(91,150,106,.12), transparent 42%),
+      var(--bg);
+  }
+  header {
+    height: 68px; padding: 0 30px; gap: 13px;
+    background: rgba(11,16,13,.96);
+    border-color: var(--line);
+  }
+  .mark { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 0 24px rgba(139,214,168,.16); }
+  .wm-name { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: .13em; }
+  .wm-name::after { content: " / LOCAL REGISTRY"; color: var(--faint); font-size: 10px; letter-spacing: .08em; margin-left: 10px; }
+  .chip { background: #111a14; border-color: var(--line); border-radius: 6px; font-size: 11px; padding: 6px 10px; }
+  #repo { color: var(--ink-soft); }
+  #themeBtn { width: 34px; height: 34px; padding: 0; border-color: transparent; background: transparent; }
+  #refreshBtn { height: 34px; color: var(--accent); border-color: var(--line-strong); background: var(--panel); }
+  .workbench { min-height: 0; }
+  .activitybar {
+    width: 218px; padding: 26px 14px 18px;
+    background: #0e1410; border-color: var(--line);
+  }
+  .activitybar::before {
+    content: "WORKSPACE"; display: block; padding: 0 12px 12px;
+    color: var(--faint); font: 10px var(--mono); letter-spacing: .18em;
+  }
+  .tabs { display: flex; gap: 5px; padding: 0; }
+  .tabs button {
+    min-height: 42px; flex-direction: row; justify-content: flex-start; gap: 12px;
+    padding: 0 12px; font-size: 13px; letter-spacing: 0; border-radius: 6px;
+  }
+  .tabs button::before { width: 18px; font-size: 15px; color: var(--muted); }
+  .tabs button.active { background: #1a2b20; color: var(--accent); }
+  .tabs button.active::before { color: var(--accent); }
+  .tabs button.active::after { left: 0; top: 9px; bottom: 9px; width: 2px; border-radius: 0 2px 2px 0; }
+  .tab-n { margin-left: auto; min-width: 23px; height: 19px; line-height: 17px; background: #202a23; font-size: 10px; }
+  .tabs button.active .tab-n { background: #263c2d; color: var(--accent); }
+  .mainarea { min-width: 0; }
+  .cards { display: none !important; }
+  .syncbox {
+    position: relative; padding: 14px 30px; gap: 16px;
+    background: #141b16; border-bottom-color: var(--line);
+  }
+  .syncbox::before { content: ""; width: 2px; position: absolute; left: 0; top: 14px; bottom: 14px; background: var(--amber); }
+  .sync-label { min-width: 130px; gap: 8px; }
+  .sync-label .lab-en { font-size: 9px; letter-spacing: .14em; }
+  .sync-label .lab-cn { font-size: 14px; }
+  .sync-actions { gap: 7px; }
+  .sync-actions button { min-height: 34px; padding-inline: 14px; }
+  .syncbox .sync-write { color: var(--accent); border-color: #47624d; background: #1b2b20; }
+  .syncbox .sync-write:hover { background: var(--accent); color: var(--accent-ink); }
+  .sync-scope { padding-left: 14px; border-left: 1px solid var(--line-strong); font-size: 10px; }
+  .syncbox .hint { font-size: 11px; }
+  .tabs-hint { padding: 8px 30px; font-size: 11px; background: #101712; border-color: var(--line); }
+  .page-summary {
+    min-height: 66px; padding: 15px 30px 12px; gap: 14px;
+    background: transparent; border: 0;
+  }
+  .page-summary strong { font-family: var(--disp); font-size: 24px; font-weight: 500; letter-spacing: -.02em; }
+  .page-summary span { font-family: var(--sans); font-size: 12px; }
+  .toolbar { padding: 12px 30px; gap: 8px; background: transparent; border-color: var(--line); }
+  .toolbar input[type="search"] { max-width: 520px; min-height: 38px; font: 12px var(--sans); background: #0d1410; border-color: var(--line); }
+  .toolbar select { min-height: 38px; font: 12px var(--sans); background: #0d1410; border-color: var(--line); }
+  #importBtn { min-height: 38px; color: var(--accent); border-color: #3c5944; background: #19281e; }
+  #clearFilter { min-height: 38px; }
+  .filter-info { margin-left: auto; font-size: 10px; }
+  .panel { background: transparent; }
+  .tbl-wrap { padding: 0 18px 12px 30px; }
+  table { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  thead th {
+    top: 0; padding: 12px 14px; background: #121a15; color: #7e9184;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-strong);
+    font-size: 9px; letter-spacing: .13em;
+  }
+  thead th:first-child { border-radius: 6px 0 0 0; }
+  thead th:last-child { border-radius: 0 6px 0 0; }
+  tbody td { padding: 13px 14px; border-bottom-color: #202c24; }
+  tbody tr:hover { background: rgba(139,214,168,.045); }
+  tbody tr strong { font-size: 13px; }
+  .detail { font-size: 11.5px; }
+  .badge, .st { font-size: 10px; padding: 3px 8px; }
+  .row-actions button { padding: 6px 9px; font-size: 11px; }
+  .pager-bar { padding: 11px 30px; background: #121a15; border-color: var(--line); }
+  .statusbar {
+    min-height: 30px; padding: 0 18px; gap: 11px;
+    color: #8fa496; background: #0b100d; border-top: 1px solid var(--line);
+    font-size: 9px; letter-spacing: .06em;
+  }
+  .statusbar .sb-right { color: var(--faint); }
+  .empty { padding: 76px 24px; }
+  .empty .glyph { font-family: var(--mono); font-size: 30px; color: var(--accent); opacity: .7; }
+  .empty .et { font-size: 15px; }
+  .empty .es { font-size: 9px; letter-spacing: .13em; }
+  .modal { border-color: var(--line-strong); }
+  #toasts { bottom: 42px; }
+  .toast { border-color: var(--line-strong); }
+  :where(button, input, select, summary):focus-visible { outline-offset: 3px; }
+  tbody tr { animation: row-in .24s ease both; }
+  tbody tr:nth-child(2) { animation-delay: .025s; }
+  tbody tr:nth-child(3) { animation-delay: .05s; }
+  @keyframes row-in { from { opacity: .45; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  body.light {
+    --bg: #f2f5f1; --bg-deep: #fff; --panel: #fff; --panel-2: #f0f4ef; --raise: #e9f0e9;
+    --ink: #1a2b20; --ink-soft: #405448; --muted: #687b6e; --faint: #91a094;
+    --line: #e0e8e0; --line-strong: #c9d6ca; --accent: #25784b; --accent-soft: #e4f1e7;
+    --accent-ink: #fff; --amber: #a96d1d; --amber-fill: #bf8125;
+    --amber-soft: rgba(191,129,37,.1); --amber-line: rgba(191,129,37,.28);
+  }
+  body.light header, body.light .activitybar { background: #fff; }
+  body.light .syncbox, body.light thead th, body.light .pager-bar { background: #f7faf7; }
+  body.light .toolbar input[type="search"], body.light .toolbar select { background: #fff; }
+  body.light .statusbar { color: #64796b; background: #edf3ee; }
+  @media (max-width: 860px) {
+    header { padding-inline: 18px; }
+    .activitybar { width: 190px; }
+    .syncbox, .toolbar, .tabs-hint, .meta-line, .warn, .pager-bar { padding-left: 20px; padding-right: 20px; }
+    .page-summary { padding-inline: 20px; }
+    .tbl-wrap { padding-left: 20px; }
+  }
+  @media (max-width: 720px) {
+    header { min-height: 60px; padding: 9px 14px; }
+    .wm-name::after { display: none; }
+    #repo { order: 6; flex: 1 1 100%; max-width: none; }
+    #pretransChip { order: 7; }
+    #refreshBtn { font-size: 0; width: 35px; padding: 0; }
+    #refreshBtn::after { content: "↻"; font: 20px var(--sans); }
+    .activitybar { width: 62px; padding: 14px 5px; }
+    .activitybar::before { content: ""; padding: 0; }
+    .tabs { gap: 5px; }
+    .tabs button { min-height: 43px; width: 50px; padding: 7px 3px; justify-content: center; gap: 3px; font-size: 0; }
+    .tabs button::before { width: auto; font-size: 17px; }
+    .tab-n { position: absolute; right: 0; top: 0; min-width: 16px; height: 15px; line-height: 13px; padding: 0 3px; font-size: 9px; }
+    .syncbox { padding: 12px 16px; gap: 9px 12px; }
+    .sync-label { min-width: 0; }
+    .sync-scope { padding-left: 0; border: 0; }
+    .page-summary { min-height: 58px; padding: 12px 16px 8px; }
+    .page-summary strong { font-size: 21px; }
+    .toolbar { padding: 10px 16px; }
+    .tbl-wrap { padding: 0 0 8px 16px; }
+    thead th, tbody td { padding-inline: 11px; }
+    .statusbar { padding: 0 10px; }
+  }
+  @media (max-width: 460px) {
+    .activitybar { width: 48px; padding-inline: 3px; }
+    .tabs button { width: 42px; }
+    .syncbox .hint { font-size: 10px; }
+    .page-summary { flex-wrap: wrap; gap: 4px 10px; }
+    .toolbar { grid-template-columns: 1fr auto; }
+    .toolbar input[type="search"] { grid-column: 1 / -1; }
+    .toolbar select { width: auto; }
+    #importBtn { width: auto; }
+    .pager-bar { gap: 8px; flex-wrap: wrap; }
+    .pager-info { flex: 1 1 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    tbody tr { animation: none; }
+  }
+
+  /* Final product pass: quiet surfaces, stable columns, readable density. */
+  body.light {
+    --bg: #f4f6f3; --bg-deep: #ffffff; --panel: #ffffff; --panel-2: #f6f8f5; --raise: #edf3ee;
+    --ink: #203127; --ink-soft: #405247; --muted: #6b7b71; --faint: #93a198;
+    --line: #e0e7e1; --line-strong: #cbd8ce; --accent: #28734d; --accent-soft: #e7f2ea;
+    --accent-ink: #ffffff; --amber: #a86f20; --amber-fill: #b97c27;
+    --amber-soft: rgba(185,124,39,.09); --amber-line: rgba(185,124,39,.28);
+    --green: #28734d; --green-soft: rgba(40,115,77,.09); --green-line: rgba(40,115,77,.25);
+    --red: #b94d4d; --red-soft: rgba(185,77,77,.08); --red-line: rgba(185,77,77,.24);
+    --blue: #426d8a; --blue-soft: rgba(66,109,138,.08); --blue-line: rgba(66,109,138,.23);
+    --violet: #725a8d; --violet-soft: rgba(114,90,141,.08); --violet-line: rgba(114,90,141,.23);
+    --shadow-sm: 0 1px 2px rgba(32,49,39,.04); --shadow: 0 8px 24px rgba(32,49,39,.06);
+  }
+  body.light { background: #f4f6f3; color: var(--ink); }
+  body.light header { height: 64px; padding: 0 28px; background: #fff; border-bottom: 1px solid var(--line); }
+  body.light .mark { width: 32px; height: 32px; border-radius: 8px; background: #dcefe2; color: var(--accent); box-shadow: none; }
+  body.light .wm-name { color: #23372a; font-family: var(--mono); font-size: 13px; letter-spacing: .12em; }
+  body.light .wm-name::after { color: #9baa9f; }
+  body.light .chip { background: #f8faf8; border-color: var(--line); color: var(--ink-soft); border-radius: 6px; }
+  body.light #themeBtn { color: var(--muted); }
+  body.light #refreshBtn { background: #fff; color: var(--accent); border-color: var(--line-strong); }
+  body.light .activitybar { width: 196px; padding: 24px 12px; background: #fbfcfb; border-right: 1px solid var(--line); }
+  body.light .activitybar::before { padding: 0 12px 10px; color: #a0aca3; }
+  body.light .tabs button { min-height: 40px; color: #64756a; border-radius: 7px; }
+  body.light .tabs button:hover { background: #f0f5f1; color: var(--ink); }
+  body.light .tabs button.active { color: var(--accent); background: #e8f3eb; }
+  body.light .tabs button.active::after { background: var(--accent); }
+  body.light .tab-n { background: #eef3ef; color: #829188; }
+  body.light .tabs button.active .tab-n { background: #d6eadb; color: var(--accent); }
+  body.light .syncbox { min-height: 62px; padding: 12px 30px; background: #fff; border-bottom: 1px solid var(--line); }
+  body.light .syncbox::before { top: 16px; bottom: 16px; width: 3px; background: #cf9b49; }
+  body.light .sync-label .lab-en { color: #a4742b; }
+  body.light .sync-label .lab-cn { color: var(--ink); }
+  body.light .syncbox .sync-write { background: var(--accent); color: #fff; border-color: var(--accent); }
+  body.light .syncbox .sync-write:hover { background: #1e5e3e; border-color: #1e5e3e; color: #fff; }
+  body.light .sync-scope { color: var(--muted); border-color: var(--line); }
+  body.light .syncbox .hint { color: var(--muted); }
+  body.light .tabs-hint { padding: 8px 30px; background: #f8faf8; color: #708078; border-bottom: 1px solid var(--line); }
+  body.light .page-summary { min-height: 72px; padding: 19px 30px 13px; background: transparent; }
+  body.light .page-summary strong { color: #203127; font-size: 25px; }
+  body.light .page-summary span { color: #6c7e72; }
+  body.light .toolbar { padding: 12px 30px; background: transparent; border-bottom: 1px solid var(--line); }
+  body.light .toolbar input[type="search"], body.light .toolbar select { min-height: 38px; background: #fff; border-color: var(--line-strong); color: var(--ink); font-family: var(--sans); }
+  body.light .toolbar input[type="search"] { max-width: 560px; }
+  body.light #importBtn { color: var(--accent); border-color: #a9c5b1; background: #f1f8f2; }
+  body.light .panel { background: #f4f6f3; }
+  body.light .tbl-wrap { padding: 0 28px 14px 30px; }
+  body.light table { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+  body.light thead th { padding: 11px 14px; background: #f8faf8; color: #7c8b81; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line-strong); }
+  body.light tbody td { padding: 14px; background: #fff; border-bottom: 1px solid #e8ede9; }
+  body.light tbody tr:hover td { background: #f7fbf8; }
+  body.light tbody tr td:first-child { border-left: 1px solid #edf1ed; }
+  body.light tbody tr td:last-child { border-right: 1px solid #edf1ed; }
+  body.light #panel table.library-table th:first-child { width: 51% !important; }
+  body.light #panel table.library-table th:nth-child(2) { width: 31% !important; }
+  body.light #panel table.library-table th:last-child { width: 18% !important; }
+  body.light #panel table.pending-table th:first-child { width: 13% !important; }
+  body.light #panel table.pending-table th:nth-child(2) { width: 57% !important; }
+  body.light #panel table.pending-table th:last-child { width: 30% !important; }
+  body.light #panel table.problem-table th:first-child { width: 13% !important; }
+  body.light #panel table.problem-table th:nth-child(2) { width: 42% !important; }
+  body.light #panel table.problem-table th:nth-child(3) { width: 15% !important; }
+  body.light #panel table.problem-table th:last-child { width: 30% !important; }
+  body.light #panel table.managed-table th:first-child { width: 13% !important; }
+  body.light #panel table.managed-table th:nth-child(2) { width: 67% !important; }
+  body.light #panel table.managed-table th:last-child { width: 20% !important; }
+  body.light #panel table.history-table th:first-child { width: 18% !important; }
+  body.light #panel table.history-table th:nth-child(2) { width: 13% !important; }
+  body.light #panel table.history-table th:last-child { width: 69% !important; }
+  /* Keep badge cells as table cells; flex on a TD breaks column sizing. */
+  body.light .badge, body.light .st { line-height: 1.35; }
+  body.light .detail { color: #748379; }
+  body.light .pager-bar { margin: 0 28px 0 30px; padding: 11px 14px; background: #fff; border: 1px solid var(--line); }
+  body.light .statusbar { background: #eaf2ec; color: #66806f; border-top: 1px solid #d7e4da; }
+  @media (max-width: 720px) {
+    body.light header { padding: 9px 14px; }
+    body.light .activitybar { width: 60px; padding: 14px 5px; }
+    body.light .syncbox { padding: 12px 16px; }
+    body.light .page-summary { padding: 13px 16px 9px; }
+    body.light .toolbar { padding: 10px 16px; }
+    body.light .tbl-wrap { padding-left: 16px; padding-right: 16px; overflow-x: auto; }
+    body.light .tbl-wrap table { min-width: 760px; }
+    body.light .pager-bar { margin-left: 16px; margin-right: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -446,18 +756,18 @@
   <span class="chip" id="repo"><span class="pulse"></span>加载中…</span>
   <span class="chip" id="pretransChip" hidden></span>
   <span class="scan-time" id="lastScan"></span>
-  <button id="themeBtn" onclick="toggleTheme()" title="切换亮/暗主题">☀</button>
-  <button id="refreshBtn">↻ REFRESH</button>
+  <button id="themeBtn" onclick="toggleTheme()" title="切换亮/暗主题" aria-label="切换亮暗主题" aria-pressed="false">☀</button>
+  <button id="refreshBtn" title="重新扫描技能目录" aria-label="重新扫描技能目录">↻ REFRESH</button>
 </header>
 
 <div class="workbench">
-  <nav class="activitybar">
-    <div class="tabs" id="tabs">
-      <button data-tab="library" data-icon="▤" class="active" title="共享仓 canonical 技能本体">技能库<span class="tab-n" id="cnt-library">0</span></button>
-      <button data-tab="pending" data-icon="↓" title="平台侧新技能，待采纳">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
-      <button data-tab="managed" data-icon="↔" title="已纳管软链与已忽略">纳管<span class="tab-n" id="cnt-managed">0</span></button>
-      <button data-tab="problems" data-icon="!" title="异常与分叉">问题<span class="tab-n" id="cnt-problems">0</span></button>
-      <button data-tab="history" data-icon="⏱" title="操作审计留痕">历史<span class="tab-n" id="cnt-history">0</span></button>
+  <nav class="activitybar" aria-label="技能库导航">
+    <div class="tabs" id="tabs" role="tablist" aria-label="技能库视图">
+      <button id="tab-library" data-tab="library" data-icon="▤" class="active" role="tab" tabindex="0" aria-selected="true" aria-controls="panel" title="共享仓 canonical 技能本体">技能库<span class="tab-n" id="cnt-library">0</span></button>
+      <button id="tab-pending" data-tab="pending" data-icon="↓" role="tab" tabindex="-1" aria-selected="false" aria-controls="panel" title="平台侧新技能，待采纳">待采纳<span class="tab-n" id="cnt-pending">0</span></button>
+      <button id="tab-managed" data-tab="managed" data-icon="↔" role="tab" tabindex="-1" aria-selected="false" aria-controls="panel" title="已纳管软链与已忽略">纳管<span class="tab-n" id="cnt-managed">0</span></button>
+      <button id="tab-problems" data-tab="problems" data-icon="!" role="tab" tabindex="-1" aria-selected="false" aria-controls="panel" title="异常与分叉">问题<span class="tab-n" id="cnt-problems">0</span></button>
+      <button id="tab-history" data-tab="history" data-icon="⏱" role="tab" tabindex="-1" aria-selected="false" aria-controls="panel" title="操作审计留痕">历史<span class="tab-n" id="cnt-history">0</span></button>
     </div>
   </nav>
 
@@ -471,12 +781,14 @@
       </div>
       <div class="sync-actions">
         <button id="applyDry">预演</button>
-        <button id="applyWriteLink" class="primary">apply --write --link</button>
+        <button id="applyWriteLink" class="sync-write">执行下发</button>
       </div>
+      <span class="sync-scope" id="applyScope">预计检查 <b>—</b> 个目标</span>
       <span class="hint">实体先备份 <code>.bak-*</code>，分叉拒绝。最近：<b id="lastApply">无</b></span>
     </div>
 
     <div class="tabs-hint" id="tabsHint"></div>
+    <div class="page-summary" id="pageSummary" aria-live="polite"></div>
 
     <div class="toolbar" id="toolbar">
       <input type="search" id="searchBox" placeholder="搜索名称 / 简介 / 关键词…"
@@ -489,7 +801,7 @@
       <span class="filter-info" id="filterInfo"></span>
     </div>
 
-    <div class="panel" id="panel"></div>
+    <div class="panel" id="panel" role="tabpanel" tabindex="0" aria-labelledby="tab-library" aria-live="polite"></div>
 
     <div class="statusbar">
       <span id="sbRepo">—</span>
@@ -498,7 +810,7 @@
       <span class="sep">│</span>
       <span>CANONICAL 唯一事实源</span>
       <div class="sb-right">
-        <span>AUDIT.LOGL 留痕</span>
+        <span>AUDIT.LOG 留痕</span>
         <span class="sep">│</span>
         <span>只读不编辑</span>
       </div>
@@ -507,21 +819,25 @@
 </div>
 
 <div class="modal-mask" id="modalMask">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <h3 id="modalTitle"></h3>
     <div class="body" id="modalBody"></div>
     <div class="foot" id="modalFoot"></div>
   </div>
 </div>
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
 <script>
 "use strict";
-// 主题：暗色默认，亮色通过 body.light 切换；偏好存 localStorage
+// 主题：亮色默认，暗色通过 body.light 切换；偏好存 localStorage
 function applyTheme(t) {
   const isLight = t === "light";
   document.body.classList.toggle("light", isLight);
   const btn = document.getElementById("themeBtn");
-  if (btn) btn.textContent = isLight ? "☾" : "☀";
+  if (btn) {
+    btn.textContent = isLight ? "☾" : "☀";
+    btn.setAttribute("aria-pressed", String(!isLight));
+    btn.setAttribute("aria-label", isLight ? "切换到暗色主题" : "切换到亮色主题");
+  }
 }
 function toggleTheme() {
   const cur = document.body.classList.contains("light") ? "light" : "dark";
@@ -596,6 +912,7 @@ const jstr = v => JSON.stringify(v).replace(/[<>'&]/g, c => ({"<":"&lt;",">":"&g
 function toast(msg, kind = "") {
   const el = document.createElement("div");
   el.className = "toast " + kind;
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
   el.textContent = msg;
   $("#toasts").appendChild(el);
   setTimeout(() => el.remove(), 4200);
@@ -659,9 +976,30 @@ function renderCards() {
   $("#cards").innerHTML = cards.map((c, i) =>
     `<div class="card ${c[2]}"><div class="idx">0${i + 1}/05</div><div class="n">${c[1]}</div><div class="t">${c[0]}</div><div class="en">${c[3]}</div></div>`
   ).join("");
-  $("#repo").innerHTML = `<span class="pulse"></span>${esc(DATA.repo_root)}`;
+  const repoPath = String(DATA.repo_root || "");
+  const repoName = repoPath.split(/[\\/]/).filter(Boolean).pop() || "本地技能仓";
+  $("#repo").innerHTML = `<span class="pulse"></span>${esc(repoName)}`;
+  $("#repo").title = repoPath;
+  $("#sbRepo").textContent = repoName;
+  const targetCount = Number(DATA.catalog_target_count || 0);
+  $("#applyScope").innerHTML = `预计检查 <b>${targetCount}</b> 个技能目标`;
+  $("#applyWriteLink").title = targetCount ? `执行下发：检查 ${targetCount} 个技能目标` : "执行下发：当前没有已登记技能";
   const la = DATA.state?.last_apply;
   $("#lastApply").textContent = la?.time ? `${la.time}（变更 ${la.changed ?? "?"}）` : "无";
+}
+
+function updatePageSummary(tab, counts) {
+  const labels = { library: "技能库", pending: "待采纳", problems: "问题", managed: "纳管", history: "历史" };
+  const parts = [`<strong>${labels[tab] || "当前视图"}</strong>`];
+  if (tab === "pending") parts.push(`<span class="summary-alert">${counts.pending} 条待处理</span>`);
+  else if (tab === "problems") parts.push(`<span class="summary-danger">${counts.problems} 个异常</span>`);
+  else if (tab === "managed") parts.push(`<span>${counts.managed} 条记录</span>`);
+  else if (tab === "library") parts.push(`<span>${counts.library} 个 canonical 技能</span>`);
+  else if (tab === "history") parts.push(`<span>${counts.history || 0} 条审计记录</span>`);
+  if (tab !== "history" && counts.pending && counts.problems) {
+    parts.push(`<span>待采纳 ${counts.pending} · 问题 ${counts.problems}</span>`);
+  }
+  $("#pageSummary").innerHTML = parts.join("");
 }
 
 function renderTabCounts(g, counts) {
@@ -770,7 +1108,7 @@ function matchRow(f) {
 
 function render() {
   const tab = curTab();
-  if (tab === "history") { renderHistoryTab(); return; }
+  if (tab === "history") { renderCards(); renderHistoryTab(); return; }
   const g = groupByStatus();
   renderCards();
   // 归档语义：已归档技能的待采纳/问题行不再显示（计入 hiddenN，可在技能库恢复）
@@ -787,10 +1125,12 @@ function render() {
   const prob = problemRows.filter(matchRow);
   const man = managedRows.filter(matchRow);
   const lib = allLib.filter(matchLibraryRow);
-  renderTabCounts(g, {
+  const tabCounts = {
     pending: pendingRows.length, problems: problemRows.length,
     managed: managedRows.length, library: allLib.length
-  });
+  };
+  renderTabCounts(g, tabCounts);
+  updatePageSummary(tab, tabCounts);
   // 筛选提示：页签计数保持全量，这里显示当前页签的匹配数
   const totals = { pending: pendingRows.length, problems: problemRows.length,
                    managed: managedRows.length, library: allLib.length };
@@ -886,16 +1226,16 @@ function renderPending(rows, hiddenN = 0) {
     return;
   }
   const pg = pageSlice(rows, "pending");
-  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table class="pending-table"><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:230px">操作 / ACTIONS</th>
     </tr></thead><tbody>${pg.items.map(f => {
       const desc = rowDesc(f);
       const shown = DESC_ZH.get(desc) || desc;
       const statusLine = f.detail === GENERIC_PENDING_DETAIL ? "" :
-        `<div class="detail">${esc(f.detail)}</div>`;
+        `<div class="detail secondary-detail">${esc(f.detail)}</div>`;
       return `<tr>
       <td>${badge(f.platform)}</td>
-      <td><strong>${esc(f.name)}</strong>${desc ? `<div class="detail clamp2" title="${esc(desc)}">${esc(shown)}</div>` : ""}${statusLine}</td>
+      <td><strong>${esc(f.name)}</strong>${desc ? `<div class="detail clamp1" title="${esc(desc)}">${esc(shown)}</div>` : ""}${statusLine}</td>
       <td><div class="row-actions">
         <button onclick="viewSource('${f.platform}', ${jstr(f.name)})">查看</button>
         <button class="primary" onclick="openAdopt('${f.platform}', ${jstr(f.name)})">采纳…</button>
@@ -908,7 +1248,7 @@ function renderProblems(rows, hiddenN = 0) {
     ? `<div class="meta-line">另有 ${hiddenN} 条已归档技能的异常未显示（可在技能库恢复）</div>` : "";
   if (!rows.length) { $("#panel").innerHTML = hint || emptyBlock("✓", "没有需要处理的问题", "ALL SYSTEMS NOMINAL"); return; }
   const pg = pageSlice(rows, "problems");
-  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = hint + `<div class="tbl-wrap"><table class="problem-table"><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:120px">状态 / STATUS</th><th style="width:260px">操作 / ACTIONS</th>
     </tr></thead><tbody>${pg.items.map(f => `<tr>
       <td>${f.platform === "-" ? "" : badge(f.platform)}</td>
@@ -936,7 +1276,7 @@ function problemActions(f) {
 function renderManaged(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "暂无已纳管技能", "NOTHING LINKED"); return; }
   const pg = pageSlice(rows, "managed");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table class="managed-table"><thead><tr>
     <th style="width:96px">平台 / PLATFORM</th><th>技能 / SKILL</th><th style="width:170px">状态 / STATUS</th>
     </tr></thead><tbody>${pg.items.map(f => f.status === "ignored" ? `<tr>
       <td>${badge(f.platform)}</td>
@@ -974,7 +1314,7 @@ function matchLibraryRow(r) {
 function renderLibrary(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "技能库为空", "CANONICAL EMPTY"); return; }
   const pg = pageSlice(rows, "library");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table class="library-table"><thead><tr><th>技能 / SLUG</th><th>已下发平台 / TARGETS</th><th style="width:150px"></th></tr></thead>
     <tbody>${pg.items.map(r => `<tr><td><strong>${esc(r.slug)}</strong>${r.archived ? ` <span class="st st-archived">已归档</span>` : ""}${r.desc ? `<div class="detail clamp2" title="${esc(r.desc)}">${esc(r.desc)}</div>` : ""}</td><td class="cell-badges">${r.plats.map(badge).join(" ") || `<span class="muted" style="font-size:12.5px">未下发到任何平台</span>`}</td>
       <td><div class="row-actions"><button onclick="viewSkill(${jstr(r.slug)})">查看</button>${r.registered
         ? (r.archived
@@ -1032,7 +1372,7 @@ function historyDetail(rec) {
 
 function renderHistoryTab() {
   if (HISTORY) { paintHistory(HISTORY); return; }
-  $("#panel").innerHTML = emptyBlock("···", "加载操作历史…", "READING AUDIT.LOGL");
+  $("#panel").innerHTML = emptyBlock("···", "加载操作历史…", "READING AUDIT.LOG");
   ensureHistory()
     .then(() => ensureUndoMap())
     .then(() => { if (curTab() === "history") render(); })
@@ -1042,6 +1382,7 @@ function renderHistoryTab() {
 function paintHistory(all) {
   const rows = all.filter(matchHistoryRow);
   $("#cnt-history").textContent = String(all.length);
+  updatePageSummary("history", { history: all.length });
   $("#filterInfo").textContent =
     filtersActive() ? `FILTER ${rows.length} / ${all.length}` : "";
   $("#clearFilter").style.display = filtersActive() ? "" : "none";
@@ -1057,7 +1398,7 @@ function paintHistory(all) {
 function renderHistory(rows) {
   if (!rows.length) { $("#panel").innerHTML = emptyBlock("———", "暂无操作记录", "AUDIT LOG EMPTY"); return; }
   const pg = pageSlice(rows, "history");
-  $("#panel").innerHTML = `<div class="tbl-wrap"><table><thead><tr>
+  $("#panel").innerHTML = `<div class="tbl-wrap"><table class="history-table"><thead><tr>
     <th style="width:175px">时间 / TIME</th><th style="width:90px">动作 / ACTION</th><th>对象与详情 / TARGET & DETAIL</th>
     </tr></thead><tbody>${pg.items.map(rec => {
       const when = (rec.time || "").replace("T", " ");
@@ -1081,12 +1422,19 @@ function renderHistory(rows) {
 
 // ---- 模态框 ----
 function modal(title, bodyHtml, footHtml) {
+  modalReturnFocus = document.activeElement;
   $("#modalTitle").textContent = title;
   $("#modalBody").innerHTML = bodyHtml;
   $("#modalFoot").innerHTML = footHtml;
   $("#modalMask").classList.add("show");
+  const focusable = $("#modalMask").querySelector("button, input, select, textarea, [tabindex]:not([tabindex='-1'])");
+  if (focusable) setTimeout(() => focusable.focus(), 0);
 }
-function closeModal() { $("#modalMask").classList.remove("show"); PRETRANS.paused = false; paintPretransChip(); }
+let modalReturnFocus = null;
+function closeModal() {
+  $("#modalMask").classList.remove("show"); PRETRANS.paused = false; paintPretransChip();
+  if (modalReturnFocus && modalReturnFocus.focus) modalReturnFocus.focus();
+}
 $("#modalMask").addEventListener("click", e => { if (e.target.id === "modalMask") closeModal(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
@@ -1439,11 +1787,29 @@ function updateTabsHint() {
 $("#tabs").addEventListener("click", e => {
   const btn = e.target.closest("button[data-tab]");
   if (btn) {
-    document.querySelectorAll("#tabs button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#tabs button").forEach(b => {
+      b.classList.remove("active");
+      b.setAttribute("aria-selected", "false");
+    });
     btn.classList.add("active");
+    btn.setAttribute("aria-selected", "true");
+    document.querySelectorAll("#tabs button").forEach(b => b.tabIndex = b === btn ? 0 : -1);
+    $("#panel").setAttribute("aria-labelledby", btn.id);
     updateTabsHint();
     render();
   }
+});
+$("#tabs").addEventListener("keydown", e => {
+  const tabs = [...document.querySelectorAll("#tabs button[data-tab]")];
+  const current = tabs.indexOf(e.target.closest("button[data-tab]"));
+  if (current < 0) return;
+  let next = current;
+  if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (current + 1) % tabs.length;
+  else if (e.key === "ArrowUp" || e.key === "ArrowLeft") next = (current - 1 + tabs.length) % tabs.length;
+  else if (e.key === "Home") next = 0;
+  else if (e.key === "End") next = tabs.length - 1;
+  else return;
+  e.preventDefault(); tabs[next].focus(); tabs[next].click();
 });
 updateTabsHint();
 

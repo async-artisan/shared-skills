@@ -846,6 +846,10 @@ class Handler(BaseHTTPRequestHandler):
                     slug for slug, m in catalog_skills.items() if m.get("archived"))
                 # catalog 账本清单：技能库据此列出「已登记但未下发」的技能
                 result["catalog_slugs"] = sorted(catalog_skills)
+                result["catalog_target_count"] = sum(
+                    len(meta.get("platforms") or [])
+                    for meta in catalog_skills.values()
+                    if isinstance(meta, dict))
                 self._send_json(result)
                 return
             if parsed.path == "/api/diff":
